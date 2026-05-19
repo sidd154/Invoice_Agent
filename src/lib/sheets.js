@@ -1,5 +1,6 @@
 import { google } from 'googleapis';
 import path from 'path';
+import fs from 'fs';
 
 export async function fetchSheetsData() {
   let auth;
@@ -20,10 +21,14 @@ export async function fetchSheetsData() {
 
   if (!auth) {
     const credentialsPath = path.join(process.cwd(), 'seo-dashboard.json');
-    auth = new google.auth.GoogleAuth({
-      keyFile: credentialsPath,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-    });
+    if (fs.existsSync(credentialsPath)) {
+      auth = new google.auth.GoogleAuth({
+        keyFile: credentialsPath,
+        scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+      });
+    } else {
+      throw new Error('Google Credentials are missing. Please add GOOGLE_CREDENTIALS environment variable in Vercel.');
+    }
   }
 
   const sheets = google.sheets({ version: 'v4', auth });
