@@ -564,7 +564,16 @@ function QueueView({ invoices, customers, templates, formatCurrency, saveHistory
       invoices: grouped[cName],
       total: grouped[cName].reduce((acc, curr) => acc + cleanAmount(curr['Invoice amount']), 0)
     };
-  }).filter(c => c.customerData);
+  }).filter(c => {
+    if (!c.customerData) return false;
+    // Hide customer from first notice queue if they already have been sent a notice for their current open invoices
+    const hasAlreadyBeenSentNotice = sentHistory.some(h => 
+      h.customerName === c.customerName && 
+      h.invoiceIds && // Ensure invoiceIds exists in history record
+      c.invoices.some(inv => h.invoiceIds.includes(inv['Invoice number']))
+    );
+    return !hasAlreadyBeenSentNotice;
+  });
 
   const handleReview = (client) => {
     setSelectedClient(client);
