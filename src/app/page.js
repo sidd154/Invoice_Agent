@@ -51,8 +51,8 @@ export default function App() {
           supabase.from('invoices').select('*'),
           supabase.from('customers').select('*'),
           supabase.from('sent_history').select('*').order('sent_at', { ascending: false }),
-          supabase.from('global_settings').select('*').eq('id', 1).single(),
-          supabase.from('email_templates').select('*').eq('id', 1).single()
+          supabase.from('global_settings').select('*').eq('id', 1),
+          supabase.from('email_templates').select('*').eq('id', 1)
         ]);
 
         if (invRes.data && invRes.data.length > 0) {
@@ -67,11 +67,13 @@ export default function App() {
             id: h.id, customerName: h.customer_name, email: h.email, type: h.type, sentAt: h.sent_at, invoiceIds: h.invoice_ids
           })));
         }
-        if (setRes.data) {
-          setSettings({ followUpInterval: setRes.data.follow_up_interval, companyName: setRes.data.company_name, autoPilot: setRes.data.auto_pilot });
+        if (setRes.data && setRes.data.length > 0) {
+          const s = setRes.data[0];
+          setSettings({ followUpInterval: s.follow_up_interval, companyName: s.company_name, autoPilot: s.auto_pilot });
         }
-        if (tempRes.data) {
-          setTemplates({ firstNotice: tempRes.data.first_notice, followUp: tempRes.data.follow_up });
+        if (tempRes.data && tempRes.data.length > 0) {
+          const t = tempRes.data[0];
+          setTemplates({ firstNotice: t.first_notice, followUp: t.follow_up });
         }
       } catch (err) {
         console.error("Failed to load from DB:", err);
