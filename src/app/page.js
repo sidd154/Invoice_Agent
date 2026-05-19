@@ -280,7 +280,7 @@ export default function App() {
           <SidebarBtn icon={<Users size={16}/>} label="Customers" active={activeTab === 'customers'} onClick={() => setActiveTab('customers')} />
           
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 mb-1 mt-6">Communication</p>
-          <SidebarBtn icon={<Send size={16}/>} label="Send Queue" active={activeTab === 'queue'} badge={invoices.filter(i => i.status?.toLowerCase()==='open').length} onClick={() => setActiveTab('queue')} />
+          <SidebarBtn icon={<Send size={16}/>} label="Send Queue" active={activeTab === 'queue'} onClick={() => setActiveTab('queue')} />
           <SidebarBtn icon={<Clock size={16}/>} label="Follow-Ups" active={activeTab === 'followup'} onClick={() => setActiveTab('followup')} />
           <SidebarBtn icon={<History size={16}/>} label="Sent History" active={activeTab === 'history'} onClick={() => setActiveTab('history')} />
           
