@@ -179,14 +179,20 @@ export default function App() {
         // Merge logic
         const newInvoices = [...invoices];
         data.invoices.forEach(newInv => {
-          if(!newInvoices.find(i => i['Invoice number'] === newInv['Invoice number'])) {
+          const idx = newInvoices.findIndex(i => i['Invoice number'] === newInv['Invoice number']);
+          if (idx > -1) {
+            newInvoices[idx] = newInv;
+          } else {
             newInvoices.push(newInv);
           }
         });
 
         const newCustomers = [...customers];
         data.customers.forEach(newCust => {
-          if(!newCustomers.find(c => c['Customer Name'] === newCust['Customer Name'])) {
+          const idx = newCustomers.findIndex(c => c['Customer Name'] === newCust['Customer Name']);
+          if (idx > -1) {
+            newCustomers[idx] = newCust;
+          } else {
             newCustomers.push(newCust);
           }
         });
