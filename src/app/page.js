@@ -170,7 +170,9 @@ export default function App() {
   const handleSyncSheets = async () => {
     setIsUploading(true);
     try {
-      const res = await fetch('/api/sync-sheets');
+      const res = await fetch(`/api/sync-sheets?t=${Date.now()}`, {
+        headers: { 'Cache-Control': 'no-cache' }
+      });
       const data = await res.json();
       
       if (!res.ok) throw new Error(data.error || 'Failed to sync');
@@ -197,7 +199,7 @@ export default function App() {
           }
         });
 
-        saveData(newInvoices, newCustomers);
+        await saveData(newInvoices, newCustomers);
         alert("Successfully synced with Google Sheets!");
         if(!dataExists) setActiveTab('dashboard');
       }
