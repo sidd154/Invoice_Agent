@@ -5,10 +5,12 @@ const resend = new Resend(process.env.RESEND_API_KEY || 're_7yMQUyLv_75aMdQZ9GT2
 
 export async function POST(req) {
   try {
-    const { to, subject, htmlContent } = await req.json();
+    const { to, subject, htmlContent, companyName } = await req.json();
+
+    const senderName = companyName || 'Billing Department';
 
     const data = await resend.emails.send({
-      from: 'PixelSoft Billing <billing@pixelsoft.in>',
+      from: `${senderName} <billing@pixelsoft.in>`,
       to: [to],
       subject: subject,
       html: htmlContent,

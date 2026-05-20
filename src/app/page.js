@@ -16,8 +16,8 @@ const cleanAmount = (val) => {
 };
 
 const DEFAULT_TEMPLATES = {
-  firstNotice: `<p style="font-family: sans-serif; color: #111;">Dear <strong>{{customer_name}}</strong>,</p>\n<p style="font-family: sans-serif; color: #333; line-height: 1.5;">This is a friendly reminder regarding pending invoices on your account. Below is a detailed summary of your outstanding payments:</p>\n\n{{invoice_table}}\n\n<p style="font-family: sans-serif; color: #111; font-size: 16px;"><strong>Total Pending Amount: <span style="color: #dc2626;">{{total_pending}}</span></strong></p>\n<p style="font-family: sans-serif; color: #333; line-height: 1.5;">Please arrange for payment at your earliest convenience to keep your account in good standing.</p>\n<br>\n<p style="font-family: sans-serif; color: #555;">Best regards,<br><strong style="color: #111;">{{company_name}}</strong></p>`,
-  followUp: `<p style="font-family: sans-serif; color: #111;">Dear <strong>{{customer_name}}</strong>,</p>\n<p style="font-family: sans-serif; color: #333; line-height: 1.5;">This is an urgent follow-up regarding your outstanding balance. We previously reached out on <strong>{{last_sent_date}}</strong>.</p>\n\n{{invoice_table}}\n\n<p style="font-family: sans-serif; color: #111; font-size: 16px;"><strong>Total Pending Amount: <span style="color: #dc2626;">{{total_pending}}</span></strong></p>\n<p style="font-family: sans-serif; color: #333; line-height: 1.5;">If you have already processed this payment, please reply to this email with the transaction details.</p>\n<br>\n<p style="font-family: sans-serif; color: #555;">Best regards,<br><strong style="color: #111;">{{company_name}}</strong></p>`
+  firstNotice: `Dear {{customer_name}},\n\nThis is a friendly reminder regarding pending invoices on your account. Below is a detailed summary of your outstanding payments:\n\n{{invoice_table}}\n\nTotal Pending Amount: {{total_pending}}\n\nPlease arrange for payment at your earliest convenience to keep your account in good standing.\n\nBest regards,\n{{company_name}}`,
+  followUp: `Dear {{customer_name}},\n\nThis is an urgent follow-up regarding your outstanding balance. We previously reached out on {{last_sent_date}}.\n\n{{invoice_table}}\n\nTotal Pending Amount: {{total_pending}}\n\nIf you have already processed this payment, please reply to this email with the transaction details.\n\nBest regards,\n{{company_name}}`
 };
 
 export default function App() {
@@ -34,7 +34,7 @@ export default function App() {
   const [customers, setCustomers] = useState([]);
   const [sentHistory, setSentHistory] = useState([]);
   const [templates, setTemplates] = useState(DEFAULT_TEMPLATES);
-  const [settings, setSettings] = useState({ followUpInterval: 10, companyName: 'PixelSoft Finance' });
+  const [settings, setSettings] = useState({ followUpInterval: 10, companyName: 'Enterprise Finance' });
   const [dataExists, setDataExists] = useState(false);
 
   // UI State
@@ -226,7 +226,7 @@ export default function App() {
               <Briefcase className="text-primary" size={32} />
             </div>
           </div>
-          <h1 className="text-2xl font-bold text-center mb-2 tracking-tight">Sign in to PixelSoft</h1>
+          <h1 className="text-2xl font-bold text-center mb-2 tracking-tight">Sign in to Billing Portal</h1>
           <p className="text-muted-foreground text-center mb-8 text-sm">Welcome back to your workspace</p>
           
           <form onSubmit={handleLogin} className="flex flex-col gap-5">
@@ -276,7 +276,7 @@ export default function App() {
             <Briefcase size={16} className="text-white" />
           </div>
           <div>
-            <h2 className="text-sm font-bold tracking-tight">PixelSoft CRM</h2>
+            <h2 className="text-sm font-bold tracking-tight">Billing CRM</h2>
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Enterprise Workspace</p>
           </div>
         </div>
@@ -525,34 +525,62 @@ function CustomersView({ customers }) {
   )
 }
 
-function compileEmailHtml(customer, customerInvoices, templateStr, formatCurrency, lastSentDate = null, companyName = "PixelSoft Finance") {
+function compileEmailHtml(customer, customerInvoices, templateStr, formatCurrency, lastSentDate = null, companyName = "Enterprise Finance") {
   const pendingAmount = customerInvoices.reduce((acc, curr) => acc + cleanAmount(curr['Invoice amount']), 0);
   
-  let tableHtml = `<table style="width:100%; border-collapse: collapse; font-family: sans-serif; font-size: 14px; margin: 24px 0; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">`;
-  tableHtml += `<tr style="background-color: #f8fafc; border-bottom: 1px solid #cbd5e1; text-align: left; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; font-size: 12px;">
+  // 1. Compile the invoice table HTML beautifully
+  let tableHtml = `<table style="width:100%; border-collapse: collapse; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; margin: 24px 0; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">`;
+  tableHtml += `<tr style="background-color: #f8fafc; border-bottom: 1px solid #cbd5e1; text-align: left; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; font-size: 11px; font-weight: 700;">
     <th style="padding: 12px 16px;">Date</th>
-    <th style="padding: 12px 16px;">Invoice #</th>
+    <th style="padding: 12px 16px;">Invoice Number</th>
     <th style="padding: 12px 16px; text-align: right;">Amount</th>
   </tr>`;
   
   customerInvoices.forEach(inv => {
     tableHtml += `<tr style="border-bottom: 1px solid #e2e8f0; color: #0f172a;">
       <td style="padding: 12px 16px;">${inv['Invoice date'] || inv.Date}</td>
-      <td style="padding: 12px 16px; font-weight: 500;">${inv['Invoice number']}</td>
-      <td style="padding: 12px 16px; text-align: right; color: #dc2626; font-weight: 600;">${formatCurrency(inv['Invoice amount'])}</td>
+      <td style="padding: 12px 16px; font-weight: 600; color: #2563eb;">${inv['Invoice number']}</td>
+      <td style="padding: 12px 16px; text-align: right; color: #dc2626; font-weight: 700;">${formatCurrency(inv['Invoice amount'])}</td>
     </tr>`;
   });
   tableHtml += `</table>`;
 
-  let html = templateStr;
-  html = html.replace(/\{\{customer_name\}\}/g, customer['Customer Name']);
-  html = html.replace(/\{\{company_name\}\}/g, companyName);
-  html = html.replace(/\{\{invoice_table\}\}/g, tableHtml);
-  html = html.replace(/\{\{total_pending\}\}/g, formatCurrency(pendingAmount));
-  if(lastSentDate) {
-    html = html.replace(/\{\{last_sent_date\}\}/g, new Date(lastSentDate).toLocaleDateString());
-  }
-  return html;
+  // 2. Escape HTML and format the plain text template to HTML by replacing newlines with <br>
+  let formattedTemplate = templateStr
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\{\{customer_name\}\}/g, `<strong>${customer['Customer Name']}</strong>`)
+    .replace(/\{\{company_name\}\}/g, `<strong>${companyName}</strong>`)
+    .replace(/\{\{total_pending\}\}/g, `<strong style="color: #dc2626; font-size: 16px;">${formatCurrency(pendingAmount)}</strong>`)
+    .replace(/\{\{last_sent_date\}\}/g, lastSentDate ? `<strong>${new Date(lastSentDate).toLocaleDateString()}</strong>` : '')
+    .replace(/\{\{invoice_table\}\}/g, '{{invoice_table_placeholder}}')
+    .replace(/\n/g, '<br>')
+    .replace(/\{\{invoice_table_placeholder\}\}/g, tableHtml);
+
+  // 3. Wrap in a stunning, premium HTML email wrapper with dynamic styling
+  const emailWrapper = `
+    <div style="background-color: #f3f4f6; padding: 32px 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+      <div style="max-w: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); border: 1px solid #e5e7eb;">
+        <!-- Header -->
+        <div style="background-color: #1e3a8a; padding: 24px; text-align: center; color: #ffffff;">
+          <h2 style="margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.025em;">Outstanding Balance Notice</h2>
+          <p style="margin: 4px 0 0 0; font-size: 12px; color: #93c5fd; text-transform: uppercase; letter-spacing: 0.05em;">${companyName}</p>
+        </div>
+        <!-- Body -->
+        <div style="padding: 32px 24px; color: #374151; font-size: 15px; line-height: 1.6;">
+          ${formattedTemplate}
+        </div>
+        <!-- Footer -->
+        <div style="background-color: #f9fafb; padding: 20px 24px; border-top: 1px solid #e5e7eb; text-align: center; font-size: 12px; color: #6b7280; line-height: 1.5;">
+          This is an automated transaction message from the billing department of <strong>${companyName}</strong>.<br>
+          If you have any questions or have already made this payment, please feel free to reply directly to this email.
+        </div>
+      </div>
+    </div>
+  `;
+
+  return emailWrapper;
 }
 
 function QueueView({ invoices, customers, templates, formatCurrency, saveHistory, sentHistory, settings }) {
@@ -596,7 +624,8 @@ function QueueView({ invoices, customers, templates, formatCurrency, saveHistory
       const payload = {
         to: selectedClient.customerData['Email ID'],
         subject: `Pending Invoices Summary - ${selectedClient.customerName}`,
-        htmlContent: compiledHtml
+        htmlContent: compiledHtml,
+        companyName: settings.companyName
       };
       
       const res = await fetch('/api/send-email', {
@@ -775,7 +804,8 @@ function FollowUpView({ invoices, customers, sentHistory, templates, formatCurre
       const payload = {
         to: selectedClient.customerData['Email ID'],
         subject: `URGENT: Follow-up on Overdue Invoices - ${selectedClient.customerName}`,
-        htmlContent: compiledHtml
+        htmlContent: compiledHtml,
+        companyName: settings.companyName
       };
       
       const res = await fetch('/api/send-email', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
@@ -884,7 +914,7 @@ function TemplatesView({ templates, setTemplates, settings, setSettings, resetDa
                 className="input" 
                 value={settings.companyName || ''} 
                 onChange={e => setSettings({...settings, companyName: e.target.value})} 
-                placeholder="PixelSoft Finance"
+                placeholder="Enterprise Finance"
               />
               <p className="text-xs text-muted-foreground mt-1.5">This replaces {'{{company_name}}'} in your templates.</p>
             </div>

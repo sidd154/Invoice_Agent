@@ -23,34 +23,62 @@ const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(numeric);
 };
 
-function compileEmailHtml(customer, customerInvoices, templateStr, lastSentDate = null, companyName = "PixelSoft Finance") {
+function compileEmailHtml(customer, customerInvoices, templateStr, lastSentDate = null, companyName = "Enterprise Finance") {
   const pendingAmount = customerInvoices.reduce((acc, curr) => acc + cleanAmount(curr['Invoice amount']), 0);
   
-  let tableHtml = `<table style="width:100%; border-collapse: collapse; font-family: sans-serif; font-size: 14px; margin: 24px 0; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">`;
-  tableHtml += `<tr style="background-color: #f8fafc; border-bottom: 1px solid #cbd5e1; text-align: left; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; font-size: 12px;">
+  // 1. Compile the invoice table HTML beautifully
+  let tableHtml = `<table style="width:100%; border-collapse: collapse; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; margin: 24px 0; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">`;
+  tableHtml += `<tr style="background-color: #f8fafc; border-bottom: 1px solid #cbd5e1; text-align: left; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; font-size: 11px; font-weight: 700;">
     <th style="padding: 12px 16px;">Date</th>
-    <th style="padding: 12px 16px;">Invoice #</th>
+    <th style="padding: 12px 16px;">Invoice Number</th>
     <th style="padding: 12px 16px; text-align: right;">Amount</th>
   </tr>`;
   
   customerInvoices.forEach(inv => {
     tableHtml += `<tr style="border-bottom: 1px solid #e2e8f0; color: #0f172a;">
       <td style="padding: 12px 16px;">${inv['Invoice date'] || inv.Date}</td>
-      <td style="padding: 12px 16px; font-weight: 500;">${inv['Invoice number']}</td>
-      <td style="padding: 12px 16px; text-align: right; color: #dc2626; font-weight: 600;">${formatCurrency(inv['Invoice amount'])}</td>
+      <td style="padding: 12px 16px; font-weight: 600; color: #2563eb;">${inv['Invoice number']}</td>
+      <td style="padding: 12px 16px; text-align: right; color: #dc2626; font-weight: 700;">${formatCurrency(inv['Invoice amount'])}</td>
     </tr>`;
   });
   tableHtml += `</table>`;
 
-  let html = templateStr;
-  html = html.replace(/\{\{customer_name\}\}/g, customer['Customer Name']);
-  html = html.replace(/\{\{company_name\}\}/g, companyName);
-  html = html.replace(/\{\{invoice_table\}\}/g, tableHtml);
-  html = html.replace(/\{\{total_pending\}\}/g, formatCurrency(pendingAmount));
-  if(lastSentDate) {
-    html = html.replace(/\{\{last_sent_date\}\}/g, new Date(lastSentDate).toLocaleDateString());
-  }
-  return html;
+  // 2. Escape HTML and format the plain text template to HTML by replacing newlines with <br>
+  let formattedTemplate = templateStr
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\{\{customer_name\}\}/g, `<strong>${customer['Customer Name']}</strong>`)
+    .replace(/\{\{company_name\}\}/g, `<strong>${companyName}</strong>`)
+    .replace(/\{\{total_pending\}\}/g, `<strong style="color: #dc2626; font-size: 16px;">${formatCurrency(pendingAmount)}</strong>`)
+    .replace(/\{\{last_sent_date\}\}/g, lastSentDate ? `<strong>${new Date(lastSentDate).toLocaleDateString()}</strong>` : '')
+    .replace(/\{\{invoice_table\}\}/g, '{{invoice_table_placeholder}}')
+    .replace(/\n/g, '<br>')
+    .replace(/\{\{invoice_table_placeholder\}\}/g, tableHtml);
+
+  // 3. Wrap in a stunning, premium HTML email wrapper with dynamic styling
+  const emailWrapper = `
+    <div style="background-color: #f3f4f6; padding: 32px 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+      <div style="max-w: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); border: 1px solid #e5e7eb;">
+        <!-- Header -->
+        <div style="background-color: #1e3a8a; padding: 24px; text-align: center; color: #ffffff;">
+          <h2 style="margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.025em;">Outstanding Balance Notice</h2>
+          <p style="margin: 4px 0 0 0; font-size: 12px; color: #93c5fd; text-transform: uppercase; letter-spacing: 0.05em;">${companyName}</p>
+        </div>
+        <!-- Body -->
+        <div style="padding: 32px 24px; color: #374151; font-size: 15px; line-height: 1.6;">
+          ${formattedTemplate}
+        </div>
+        <!-- Footer -->
+        <div style="background-color: #f9fafb; padding: 20px 24px; border-top: 1px solid #e5e7eb; text-align: center; font-size: 12px; color: #6b7280; line-height: 1.5;">
+          This is an automated transaction message from the billing department of <strong>${companyName}</strong>.<br>
+          If you have any questions or have already made this payment, please feel free to reply directly to this email.
+        </div>
+      </div>
+    </div>
+  `;
+
+  return emailWrapper;
 }
 
 export async function GET(req) {
@@ -130,7 +158,7 @@ export async function GET(req) {
               
               // Send email using Resend
               const mailRes = await resend.emails.send({
-                from: 'PixelSoft Billing <billing@pixelsoft.in>',
+                from: `${settings.company_name || 'Billing Department'} <billing@pixelsoft.in>`,
                 to: [customerData['Email ID']],
                 subject: `URGENT: Follow-up on Overdue Invoices - ${record.customer_name}`,
                 html: compiledHtml,

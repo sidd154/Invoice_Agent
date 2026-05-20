@@ -1,7 +1,7 @@
 import './globals.css'
 
 export const metadata = {
-  title: 'PixelSoft Invoice Portal',
+  title: 'Billing Portal',
   description: 'Manage invoices, track sent emails, and send automated follow-ups via Resend.',
 }
 
