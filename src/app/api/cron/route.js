@@ -60,7 +60,9 @@ export async function GET(req) {
     }
 
     // 2. Fetch configurations
-    const { data: settings } = await supabase.from('global_settings').select('*').eq('id', 1).single();
+    const { data: settingsList } = await supabase.from('global_settings').select('*').eq('id', 1);
+    const settings = settingsList?.[0];
+    
     if (!settings) {
       return NextResponse.json({ error: 'System settings not initialized' }, { status: 500 });
     }
@@ -92,11 +94,11 @@ export async function GET(req) {
     // 4. Fetch the database state for sent history and templates
     const [histRes, tempRes] = await Promise.all([
       supabase.from('sent_history').select('*').order('sent_at', { ascending: false }),
-      supabase.from('email_templates').select('*').eq('id', 1).single()
+      supabase.from('email_templates').select('*').eq('id', 1)
     ]);
 
     const sentHistory = histRes.data || [];
-    const templates = tempRes.data;
+    const templates = tempRes.data?.[0];
 
     if (!templates) {
       return NextResponse.json({ error: 'Templates not initialized' }, { status: 500 });
