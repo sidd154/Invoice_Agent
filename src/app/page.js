@@ -818,7 +818,7 @@ function TemplatesView({ templates, setTemplates, settings, setSettings, resetDa
                 />
                 <div>
                   <span className="text-sm font-bold block">Enable Auto-Pilot (Cron Job)</span>
-                  <span className="text-xs text-muted-foreground">When enabled, Vercel Cron will automatically sync Google Sheets and dispatch outstanding invoice reminders every Monday at 11:00 AM IST.</span>
+                  <span className="text-xs text-muted-foreground">When enabled, the inbuilt background scheduler will automatically sync Google Sheets and dispatch outstanding invoice reminders every Monday at 11:00 AM IST.</span>
                 </div>
               </label>
             </div>
