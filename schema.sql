@@ -32,7 +32,8 @@ CREATE TABLE IF NOT EXISTS global_settings (
   id INT PRIMARY KEY,
   follow_up_interval INT,
   company_name VARCHAR(255),
-  auto_pilot BOOLEAN DEFAULT FALSE
+  auto_pilot BOOLEAN DEFAULT FALSE,
+  cc_emails VARCHAR(255)
 );
 
 -- 5. Create Email Templates Table

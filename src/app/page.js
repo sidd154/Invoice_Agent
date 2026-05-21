@@ -34,7 +34,7 @@ export default function App() {
   const [customers, setCustomers] = useState([]);
   const [sentHistory, setSentHistory] = useState([]);
   const [templates, setTemplates] = useState(DEFAULT_TEMPLATES);
-  const [settings, setSettings] = useState({ followUpInterval: 10, companyName: 'Enterprise Finance' });
+  const [settings, setSettings] = useState({ followUpInterval: 10, companyName: 'Enterprise Finance', ccEmails: '' });
   const [dataExists, setDataExists] = useState(false);
 
   // UI State
@@ -69,7 +69,7 @@ export default function App() {
         }
         if (setRes.data && setRes.data.length > 0) {
           const s = setRes.data[0];
-          setSettings({ followUpInterval: s.follow_up_interval, companyName: s.company_name, autoPilot: s.auto_pilot });
+          setSettings({ followUpInterval: s.follow_up_interval, companyName: s.company_name, autoPilot: s.auto_pilot, ccEmails: s.cc_emails || '' });
         }
         if (tempRes.data && tempRes.data.length > 0) {
           const t = tempRes.data[0];
@@ -341,7 +341,7 @@ export default function App() {
             await supabase.from('email_templates').upsert({ id: 1, first_notice: t.firstNotice, follow_up: t.followUp }); 
           }} settings={settings} setSettings={async (s) => { 
             setSettings(s); 
-            await supabase.from('global_settings').upsert({ id: 1, follow_up_interval: s.followUpInterval, company_name: s.companyName, auto_pilot: s.autoPilot }); 
+            await supabase.from('global_settings').upsert({ id: 1, follow_up_interval: s.followUpInterval, company_name: s.companyName, auto_pilot: s.autoPilot, cc_emails: s.ccEmails }); 
           }} resetData={resetData} />}
         </div>
       </div>
@@ -587,6 +587,7 @@ function QueueView({ invoices, customers, templates, formatCurrency, saveHistory
   const [selectedClient, setSelectedClient] = useState(null);
   const [isSending, setIsSending] = useState(false);
   const [compiledHtml, setCompiledHtml] = useState("");
+  const [customCc, setCustomCc] = useState("");
 
   const openInvoices = invoices.filter(i => i.status?.toLowerCase() === 'open');
   const grouped = {};
@@ -616,6 +617,7 @@ function QueueView({ invoices, customers, templates, formatCurrency, saveHistory
   const handleReview = (client) => {
     setSelectedClient(client);
     setCompiledHtml(compileEmailHtml(client.customerData, client.invoices, templates.firstNotice, formatCurrency, null, settings.companyName));
+    setCustomCc(settings.ccEmails || "");
   };
 
   const handleSend = async () => {
@@ -623,6 +625,7 @@ function QueueView({ invoices, customers, templates, formatCurrency, saveHistory
     try {
       const payload = {
         to: selectedClient.customerData['Email ID'],
+        cc: customCc,
         subject: `Pending Invoices Summary - ${selectedClient.customerName}`,
         htmlContent: compiledHtml,
         companyName: settings.companyName
@@ -665,6 +668,16 @@ function QueueView({ invoices, customers, templates, formatCurrency, saveHistory
             <div className="composer-field">
               <span className="composer-label">To:</span>
               <span className="text-sm font-medium">{selectedClient.customerData['Email ID']}</span>
+            </div>
+            <div className="composer-field animate-fade-down">
+              <span className="composer-label">CC:</span>
+              <input 
+                type="text"
+                className="bg-transparent border-none text-sm text-foreground focus:outline-none w-full p-0 font-medium" 
+                placeholder="No CC addresses configured" 
+                value={customCc} 
+                onChange={e => setCustomCc(e.target.value)} 
+              />
             </div>
             <div className="composer-field border-none">
               <span className="composer-label">Subject:</span>
@@ -764,6 +777,7 @@ function FollowUpView({ invoices, customers, sentHistory, templates, formatCurre
   const [selectedClient, setSelectedClient] = useState(null);
   const [isSending, setIsSending] = useState(false);
   const [compiledHtml, setCompiledHtml] = useState("");
+  const [customCc, setCustomCc] = useState("");
 
   const now = new Date().getTime();
   const validFollowUps = [];
@@ -790,6 +804,7 @@ function FollowUpView({ invoices, customers, sentHistory, templates, formatCurre
   const handleReview = (client) => {
     setSelectedClient(client);
     setCompiledHtml(compileEmailHtml(client.customerData, client.invoices, templates.followUp, formatCurrency, client.lastSentRecord.sentAt, settings.companyName));
+    setCustomCc(settings.ccEmails || "");
   };
 
   const handleIgnore = (client) => {
@@ -803,6 +818,7 @@ function FollowUpView({ invoices, customers, sentHistory, templates, formatCurre
     try {
       const payload = {
         to: selectedClient.customerData['Email ID'],
+        cc: customCc,
         subject: `URGENT: Follow-up on Overdue Invoices - ${selectedClient.customerName}`,
         htmlContent: compiledHtml,
         companyName: settings.companyName
@@ -836,6 +852,16 @@ function FollowUpView({ invoices, customers, sentHistory, templates, formatCurre
             <div className="composer-field">
               <span className="composer-label">To:</span>
               <span className="text-sm font-medium">{selectedClient.customerData['Email ID']}</span>
+            </div>
+            <div className="composer-field animate-fade-down">
+              <span className="composer-label">CC:</span>
+              <input 
+                type="text"
+                className="bg-transparent border-none text-sm text-foreground focus:outline-none w-full p-0 font-medium" 
+                placeholder="No CC addresses configured" 
+                value={customCc} 
+                onChange={e => setCustomCc(e.target.value)} 
+              />
             </div>
             <div className="composer-field border-none bg-warning/5">
               <span className="composer-label">Notice:</span>
@@ -927,6 +953,17 @@ function TemplatesView({ templates, setTemplates, settings, setSettings, resetDa
                 onChange={e => setSettings({...settings, followUpInterval: parseInt(e.target.value) || 10})} 
               />
               <p className="text-xs text-muted-foreground mt-1.5">Days before an unpaid invoice triggers a Follow-Up.</p>
+            </div>
+
+            <div className="col-span-2">
+              <label className="text-xs font-semibold text-muted-foreground mb-1.5 block uppercase tracking-wider">Global CC Email(s)</label>
+              <input 
+                className="input" 
+                value={settings.ccEmails || ''} 
+                onChange={e => setSettings({...settings, ccEmails: e.target.value})} 
+                placeholder="billing-archive@yourcompany.com, audit@yourcompany.com"
+              />
+              <p className="text-xs text-muted-foreground mt-1.5">Multiple emails can be separated by commas or semicolons. These addresses will automatically be CC'd on all emails sent.</p>
             </div>
 
             <div className="col-span-2 pt-4 border-t border-border mt-2">

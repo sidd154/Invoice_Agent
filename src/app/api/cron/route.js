@@ -23,6 +23,14 @@ const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(numeric);
 };
 
+function parseEmails(emailString) {
+  if (!emailString || typeof emailString !== 'string') return [];
+  return emailString
+    .split(/[;,]/)
+    .map(email => email.trim())
+    .filter(email => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email));
+}
+
 function compileEmailHtml(customer, customerInvoices, templateStr, lastSentDate = null, companyName = "Enterprise Finance") {
   const pendingAmount = customerInvoices.reduce((acc, curr) => acc + cleanAmount(curr['Invoice amount']), 0);
   
@@ -156,28 +164,39 @@ export async function GET(req) {
             if (customerData) {
               const compiledHtml = compileEmailHtml(customerData, customerOpenInvoices, templates.follow_up, record.sent_at, settings.company_name);
               
-              // Send email using Resend
-              const mailRes = await resend.emails.send({
-                from: `${settings.company_name || 'Billing Department'} <billing@pixelsoft.in>`,
-                to: [customerData['Email ID']],
-                subject: `URGENT: Follow-up on Overdue Invoices - ${record.customer_name}`,
-                html: compiledHtml,
-              });
+              const toEmails = parseEmails(customerData['Email ID']);
+              const ccEmails = settings.cc_emails ? parseEmails(settings.cc_emails) : [];
 
-              if (!mailRes.error) {
-                // Log sent record
-                const newRecord = {
-                  id: Math.random().toString(36).substr(2, 9),
-                  customer_name: record.customer_name,
-                  email: customerData['Email ID'],
-                  type: 'Follow-Up',
-                  sent_at: new Date().toISOString(),
-                  invoice_ids: customerOpenInvoices.map(i => i['Invoice number'])
+              if (toEmails.length > 0) {
+                const emailPayload = {
+                  from: `${settings.company_name || 'Billing Department'} <billing@pixelsoft.in>`,
+                  to: toEmails,
+                  subject: `URGENT: Follow-up on Overdue Invoices - ${record.customer_name}`,
+                  html: compiledHtml,
                 };
-                await supabase.from('sent_history').insert(newRecord);
-                sentEmails.push({ customer: record.customer_name, email: customerData['Email ID'] });
-              } else {
-                console.error(`Resend failed for ${record.customer_name}:`, mailRes.error);
+
+                if (ccEmails.length > 0) {
+                  emailPayload.cc = ccEmails;
+                }
+
+                // Send email using Resend
+                const mailRes = await resend.emails.send(emailPayload);
+
+                if (!mailRes.error) {
+                  // Log sent record
+                  const newRecord = {
+                    id: Math.random().toString(36).substr(2, 9),
+                    customer_name: record.customer_name,
+                    email: customerData['Email ID'],
+                    type: 'Follow-Up',
+                    sent_at: new Date().toISOString(),
+                    invoice_ids: customerOpenInvoices.map(i => i['Invoice number'])
+                  };
+                  await supabase.from('sent_history').insert(newRecord);
+                  sentEmails.push({ customer: record.customer_name, email: customerData['Email ID'] });
+                } else {
+                  console.error(`Resend failed for ${record.customer_name}:`, mailRes.error);
+                }
               }
             }
           }
