@@ -569,11 +569,6 @@ function compileEmailHtml(customer, customerInvoices, templateStr, formatCurrenc
         <div style="padding: 32px 24px; color: #374151; font-size: 15px; line-height: 1.6;">
           ${formattedTemplate}
         </div>
-        <!-- Footer -->
-        <div style="background-color: #f9fafb; padding: 20px 24px; border-top: 1px solid #e5e7eb; text-align: center; font-size: 12px; color: #6b7280; line-height: 1.5;">
-          This is an automated transaction message from the billing department of <strong>${companyName}</strong>.<br>
-          If you have any questions or have already made this payment, please feel free to reply directly to this email.
-        </div>
       </div>
     </div>
   `;
