@@ -142,65 +142,70 @@ export async function GET(req) {
       return NextResponse.json({ error: 'Templates not initialized' }, { status: 500 });
     }
 
-    // 5. Evaluate and process automated follow-ups
-    const now = new Date().getTime();
-    const thresholdMs = (settings.follow_up_interval || 10) * 24 * 60 * 60 * 1000;
+    // 5. Evaluate and process automated open invoice reminders
+    const openInvoices = invoices.filter(i => i.status?.toLowerCase() === 'open');
+    const groupedInvoices = {};
+    
+    openInvoices.forEach(inv => {
+      if (!inv.Customer) return;
+      if (!groupedInvoices[inv.Customer]) {
+        groupedInvoices[inv.Customer] = [];
+      }
+      groupedInvoices[inv.Customer].push(inv);
+    });
+
+    const ccEmails = settings.cc_emails ? parseEmails(settings.cc_emails) : [];
     const sentEmails = [];
 
-    for (const record of sentHistory) {
-      const elapsed = now - new Date(record.sent_at).getTime();
-      
-      // If a standard notice has been sent, and the threshold of days has passed
-      if (elapsed > thresholdMs) {
-        // Find if they have open invoices
-        const customerOpenInvoices = invoices.filter(i => i.Customer === record.customer_name && i.status?.toLowerCase() === 'open');
-        
-        if (customerOpenInvoices.length > 0) {
-          // Check if we've already sent an automated follow-up for this customer in this cycle
-          const alreadyFollowedUp = sentHistory.some(h => h.customer_name === record.customer_name && h.type === 'Follow-Up' && new Date(h.sent_at).getTime() > new Date(record.sent_at).getTime());
-          
-          if (!alreadyFollowedUp) {
-            const customerData = customers.find(c => c['Customer Name'] === record.customer_name);
-            if (customerData) {
-              const compiledHtml = compileEmailHtml(customerData, customerOpenInvoices, templates.follow_up, record.sent_at, settings.company_name);
-              
-              const toEmails = parseEmails(customerData['Email ID']);
-              const ccEmails = settings.cc_emails ? parseEmails(settings.cc_emails) : [];
+    for (const customerName of Object.keys(groupedInvoices)) {
+      const customerData = customers.find(c => c['Customer Name'] === customerName);
+      if (customerData) {
+        const customerOpenInvoices = groupedInvoices[customerName];
+        const toEmails = parseEmails(customerData['Email ID']);
 
-              if (toEmails.length > 0) {
-                const emailPayload = {
-                  from: `${settings.company_name || 'Billing Department'} <billing@pixelsoft.in>`,
-                  to: toEmails,
-                  subject: `URGENT: Follow-up on Overdue Invoices - ${record.customer_name}`,
-                  html: compiledHtml,
-                };
+        if (toEmails.length > 0) {
+          const compiledHtml = compileEmailHtml(
+            customerData, 
+            customerOpenInvoices, 
+            templates.first_notice, 
+            null, 
+            settings.company_name
+          );
 
-                if (ccEmails.length > 0) {
-                  emailPayload.cc = ccEmails;
-                }
+          const emailPayload = {
+            from: `${settings.company_name || 'Billing Department'} <billing@pixelsoft.in>`,
+            to: toEmails,
+            subject: `Pending Invoices Summary - ${customerName}`,
+            html: compiledHtml,
+          };
 
-                // Send email using Resend
-                const mailRes = await resend.emails.send(emailPayload);
-
-                if (!mailRes.error) {
-                  // Log sent record
-                  const newRecord = {
-                    id: Math.random().toString(36).substr(2, 9),
-                    customer_name: record.customer_name,
-                    email: customerData['Email ID'],
-                    type: 'Follow-Up',
-                    sent_at: new Date().toISOString(),
-                    invoice_ids: customerOpenInvoices.map(i => i['Invoice number'])
-                  };
-                  await supabase.from('sent_history').insert(newRecord);
-                  sentEmails.push({ customer: record.customer_name, email: customerData['Email ID'] });
-                } else {
-                  console.error(`Resend failed for ${record.customer_name}:`, mailRes.error);
-                }
-              }
-            }
+          if (ccEmails.length > 0) {
+            emailPayload.cc = ccEmails;
           }
+
+          // Send email using Resend
+          const mailRes = await resend.emails.send(emailPayload);
+
+          if (!mailRes.error) {
+            // Log sent record
+            const newRecord = {
+              id: Math.random().toString(36).substr(2, 9),
+              customer_name: customerName,
+              email: customerData['Email ID'],
+              type: 'Automated Reminder',
+              sent_at: new Date().toISOString(),
+              invoice_ids: customerOpenInvoices.map(i => i['Invoice number'])
+            };
+            await supabase.from('sent_history').insert(newRecord);
+            sentEmails.push({ customer: customerName, email: customerData['Email ID'] });
+          } else {
+            console.error(`Resend failed for ${customerName}:`, mailRes.error);
+          }
+        } else {
+          console.warn(`No valid emails resolved for customer: ${customerName}`);
         }
+      } else {
+        console.warn(`Customer contact not found for open invoices under client name: ${customerName}`);
       }
     }
 
