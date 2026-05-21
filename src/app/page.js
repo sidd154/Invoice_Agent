@@ -512,8 +512,8 @@ function CustomersView({ customers }) {
             </tr>
           </thead>
           <tbody>
-            {customers.map(c => (
-              <tr key={c.id}>
+            {customers.map((c, index) => (
+              <tr key={c['Customer Name'] || index}>
                 <td className="font-medium text-foreground">{c['Customer Name']}</td>
                 <td className="text-muted-foreground">{c['Email ID']}</td>
               </tr>
