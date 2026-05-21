@@ -291,7 +291,6 @@ export default function App() {
           
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 mb-1 mt-6">Communication</p>
           <SidebarBtn icon={<Send size={16}/>} label="Send Queue" active={activeTab === 'queue'} onClick={() => setActiveTab('queue')} />
-          <SidebarBtn icon={<Clock size={16}/>} label="Follow-Ups" active={activeTab === 'followup'} onClick={() => setActiveTab('followup')} />
           <SidebarBtn icon={<History size={16}/>} label="Sent History" active={activeTab === 'history'} onClick={() => setActiveTab('history')} />
           
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 mb-1 mt-6">Settings</p>
@@ -335,7 +334,6 @@ export default function App() {
           )}
           {activeTab === 'queue' && <QueueView invoices={invoices} customers={customers} templates={templates} formatCurrency={formatCurrency} saveHistory={saveHistory} sentHistory={sentHistory} settings={settings} />}
           {activeTab === 'history' && <HistoryView sentHistory={sentHistory} saveHistory={saveHistory} />}
-          {activeTab === 'followup' && <FollowUpView invoices={invoices} customers={customers} sentHistory={sentHistory} templates={templates} formatCurrency={formatCurrency} saveHistory={saveHistory} settings={settings} />}
           {activeTab === 'templates' && <TemplatesView templates={templates} setTemplates={async (t) => { 
             setTemplates(t); 
             await supabase.from('email_templates').upsert({ id: 1, first_notice: t.firstNotice, follow_up: t.followUp }); 
@@ -773,151 +771,7 @@ function HistoryView({ sentHistory, saveHistory }) {
   )
 }
 
-function FollowUpView({ invoices, customers, sentHistory, templates, formatCurrency, saveHistory, settings }) {
-  const [selectedClient, setSelectedClient] = useState(null);
-  const [isSending, setIsSending] = useState(false);
-  const [compiledHtml, setCompiledHtml] = useState("");
-  const [customCc, setCustomCc] = useState("");
 
-  const now = new Date().getTime();
-  const validFollowUps = [];
-  const thresholdMs = (settings.followUpInterval || 10) * 24 * 60 * 60 * 1000;
-  
-  sentHistory.forEach(record => {
-    if(now - new Date(record.sentAt).getTime() > thresholdMs) {
-      const customerOpenInvoices = invoices.filter(i => i.Customer === record.customerName && i.status?.toLowerCase() === 'open');
-      if(customerOpenInvoices.length > 0 && !validFollowUps.find(v => v.customerName === record.customerName)) {
-        const customerData = customers.find(c => c['Customer Name'] === record.customerName);
-        if(customerData) {
-          validFollowUps.push({
-            customerName: record.customerName,
-            customerData,
-            invoices: customerOpenInvoices,
-            lastSentRecord: record,
-            total: customerOpenInvoices.reduce((acc, curr) => acc + cleanAmount(curr['Invoice amount']), 0)
-          });
-        }
-      }
-    }
-  });
-
-  const handleReview = (client) => {
-    setSelectedClient(client);
-    setCompiledHtml(compileEmailHtml(client.customerData, client.invoices, templates.followUp, formatCurrency, client.lastSentRecord.sentAt, settings.companyName));
-    setCustomCc(settings.ccEmails || "");
-  };
-
-  const handleIgnore = (client) => {
-    if(confirm(`Dismiss this follow-up? This will reset the ${settings.followUpInterval || 10}-day counter.`)) {
-       saveHistory(sentHistory.map(h => h.id === client.lastSentRecord.id ? {...h, sentAt: new Date().toISOString()} : h));
-    }
-  };
-
-  const handleSend = async () => {
-    setIsSending(true);
-    try {
-      const payload = {
-        to: selectedClient.customerData['Email ID'],
-        cc: customCc,
-        subject: `URGENT: Follow-up on Overdue Invoices - ${selectedClient.customerName}`,
-        htmlContent: compiledHtml,
-        companyName: settings.companyName
-      };
-      
-      const res = await fetch('/api/send-email', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
-      if(!res.ok) throw new Error("Failed to send");
-      
-      saveHistory([{
-        id: Math.random().toString(36).substr(2, 9), customerName: selectedClient.customerName,
-        email: selectedClient.customerData['Email ID'], type: 'Follow-Up',
-        sentAt: new Date().toISOString(), invoiceIds: selectedClient.invoices.map(i => i['Invoice number'])
-      }, ...sentHistory]);
-      
-      setSelectedClient(null);
-    } catch (e) {
-      alert("Error sending email: " + e.message);
-    }
-    setIsSending(false);
-  };
-
-  if(selectedClient) {
-    return (
-      <div className="animate-fade-up max-w-3xl m-auto">
-        <button onClick={() => setSelectedClient(null)} className="btn btn-ghost mb-6 text-muted-foreground hover:text-foreground pl-0">← Back to Follow-Ups</button>
-        <div className="composer-window border-warning/30">
-          <div className="composer-header bg-warning/10 border-warning/20">
-            <h2 className="text-sm font-semibold text-warning flex items-center gap-2"><AlertCircle size={14}/> Urgent Follow-Up</h2>
-          </div>
-          <div className="composer-body">
-            <div className="composer-field">
-              <span className="composer-label">To:</span>
-              <span className="text-sm font-medium">{selectedClient.customerData['Email ID']}</span>
-            </div>
-            <div className="composer-field animate-fade-down">
-              <span className="composer-label">CC:</span>
-              <input 
-                type="text"
-                className="bg-transparent border-none text-sm text-foreground focus:outline-none w-full p-0 font-medium" 
-                placeholder="No CC addresses configured" 
-                value={customCc} 
-                onChange={e => setCustomCc(e.target.value)} 
-              />
-            </div>
-            <div className="composer-field border-none bg-warning/5">
-              <span className="composer-label">Notice:</span>
-              <span className="text-xs text-warning font-medium">Last contacted {new Date(selectedClient.lastSentRecord.sentAt).toLocaleDateString()}</span>
-            </div>
-            <div className="composer-preview" dangerouslySetInnerHTML={{__html: compiledHtml}}></div>
-          </div>
-          <div className="composer-footer">
-            <button onClick={() => setSelectedClient(null)} className="btn btn-outline border-transparent text-muted-foreground hover:text-foreground" disabled={isSending}>Discard</button>
-            <button onClick={handleSend} className="btn bg-warning text-warning-foreground hover:bg-warning-hover shadow-[0_0_15px_rgba(245,158,11,0.2)]" disabled={isSending}>
-              <SendHorizontal size={16}/> {isSending ? "Sending..." : "Approve & Send"}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold tracking-tight">Follow-Up Queue</h2>
-        <p className="text-sm text-muted-foreground">Automated tracking for unpaid notices older than {settings.followUpInterval || 10} days.</p>
-      </div>
-      
-      <div className="table-container border-warning/20 shadow-[0_0_20px_rgba(245,158,11,0.05)]">
-        <table>
-          <thead className="bg-warning/5">
-            <tr>
-              <th>Client</th>
-              <th>Last Contact</th>
-              <th className="text-center">Count</th>
-              <th className="text-right">Debt</th>
-              <th className="text-center">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {validFollowUps.map(client => (
-              <tr key={client.customerName}>
-                <td className="font-medium">{client.customerName}</td>
-                <td className="text-warning text-sm font-medium">{new Date(client.lastSentRecord.sentAt).toLocaleDateString()}</td>
-                <td className="text-center"><span className="badge badge-open">{client.invoices.length}</span></td>
-                <td className="text-right text-destructive font-bold">{formatCurrency(client.total)}</td>
-                <td className="text-center flex justify-center gap-2">
-                  <button onClick={() => handleReview(client)} className="btn bg-warning text-warning-foreground hover:bg-warning-hover h-7 px-3 text-xs shadow-sm">Review</button>
-                  <button onClick={() => handleIgnore(client)} className="btn btn-ghost h-7 px-2 text-xs text-muted-foreground hover:text-foreground">Skip</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {validFollowUps.length === 0 && <div className="p-16 text-center text-muted-foreground text-sm">All caught up! No follow-ups needed.</div>}
-      </div>
-    </div>
-  )
-}
 
 function TemplatesView({ templates, setTemplates, settings, setSettings, resetData }) {
   return (
@@ -934,7 +788,7 @@ function TemplatesView({ templates, setTemplates, settings, setSettings, resetDa
         <div className="card p-6 border-border shadow-sm">
           <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><Settings size={18}/> Workspace Configuration</h3>
           <div className="grid grid-cols-2 gap-6">
-            <div>
+            <div className="col-span-2">
               <label className="text-xs font-semibold text-muted-foreground mb-1.5 block uppercase tracking-wider">Company/Sender Name</label>
               <input 
                 className="input" 
@@ -943,16 +797,6 @@ function TemplatesView({ templates, setTemplates, settings, setSettings, resetDa
                 placeholder="Enterprise Finance"
               />
               <p className="text-xs text-muted-foreground mt-1.5">This replaces {'{{company_name}}'} in your templates.</p>
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground mb-1.5 block uppercase tracking-wider">Follow-Up Threshold (Days)</label>
-              <input 
-                type="number"
-                className="input font-mono" 
-                value={settings.followUpInterval || 10} 
-                onChange={e => setSettings({...settings, followUpInterval: parseInt(e.target.value) || 10})} 
-              />
-              <p className="text-xs text-muted-foreground mt-1.5">Days before an unpaid invoice triggers a Follow-Up.</p>
             </div>
 
             <div className="col-span-2">
@@ -979,7 +823,7 @@ function TemplatesView({ templates, setTemplates, settings, setSettings, resetDa
                 />
                 <div>
                   <span className="text-sm font-bold block">Enable Auto-Pilot (Cron Job)</span>
-                  <span className="text-xs text-muted-foreground">When enabled, Vercel Cron will automatically dispatch follow-ups for overdue invoices every morning at 8:00 AM.</span>
+                  <span className="text-xs text-muted-foreground">When enabled, Vercel Cron will automatically sync Google Sheets and dispatch outstanding invoice reminders every Monday at 11:00 AM IST.</span>
                 </div>
               </label>
             </div>
@@ -988,23 +832,13 @@ function TemplatesView({ templates, setTemplates, settings, setSettings, resetDa
 
         <div className="card p-6 border-border shadow-sm">
           <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><FileText size={18}/> Email Templates</h3>
-          <div className="mb-6">
+          <div>
             <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-1">Standard Notice Template</h3>
             <p className="text-xs text-muted-foreground mb-3">Tags: <code className="bg-secondary px-1 py-0.5 rounded text-foreground">{'{{customer_name}}'}</code> <code className="bg-secondary px-1 py-0.5 rounded text-foreground">{'{{company_name}}'}</code></p>
             <textarea 
               className="textarea min-h-[250px] font-mono text-sm leading-relaxed" 
               value={templates.firstNotice}
               onChange={e => setTemplates({...templates, firstNotice: e.target.value})}
-            />
-          </div>
-          
-          <div>
-            <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-1">Urgent Follow-Up Template</h3>
-            <p className="text-xs text-muted-foreground mb-3">Tags: <code className="bg-secondary px-1 py-0.5 rounded text-foreground">{'{{customer_name}}'}</code> <code className="bg-secondary px-1 py-0.5 rounded text-foreground">{'{{last_sent_date}}'}</code> <code className="bg-secondary px-1 py-0.5 rounded text-foreground">{'{{company_name}}'}</code></p>
-            <textarea 
-              className="textarea min-h-[250px] font-mono text-sm leading-relaxed" 
-              value={templates.followUp}
-              onChange={e => setTemplates({...templates, followUp: e.target.value})}
             />
           </div>
         </div>
