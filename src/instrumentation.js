@@ -11,8 +11,8 @@ export async function register() {
     const cron = await import('node-cron');
     const { runAutopilotReminders } = await import('./lib/autopilot');
 
-    // Test schedule: run at 1:20 PM IST (Asia/Kolkata timezone)
-    cron.schedule('20 13 * * *', async () => {
+    // Schedule to run every Monday at 11:00 AM IST (Asia/Kolkata timezone)
+    cron.schedule('0 11 * * 1', async () => {
       console.log('[Inbuilt Autopilot] Triggering Monday outstanding invoice sync & reminders...');
       try {
         const result = await runAutopilotReminders();
