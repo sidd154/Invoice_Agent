@@ -185,6 +185,9 @@ export async function runAutopilotReminders() {
         } else {
           console.error(`Resend failed for ${customerName}:`, mailRes.error);
         }
+
+        // Wait 5 seconds before sending the next email to process them one-by-one
+        await new Promise(resolve => setTimeout(resolve, 5000));
       } else {
         console.warn(`No valid emails resolved for customer: ${customerName}`);
       }
