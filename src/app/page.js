@@ -562,7 +562,7 @@ function compileEmailHtml(customer, customerInvoices, templateStr, formatCurrenc
       <div style="max-w: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); border: 1px solid #e5e7eb;">
         <!-- Header -->
         <div style="background-color: #1e3a8a; padding: 24px; text-align: center; color: #ffffff;">
-          <h2 style="margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.025em;">Outstanding Balance Notice</h2>
+          <h2 style="margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.025em;">Statement of Account</h2>
           <p style="margin: 4px 0 0 0; font-size: 12px; color: #93c5fd; text-transform: uppercase; letter-spacing: 0.05em;">${companyName}</p>
         </div>
         <!-- Body -->
@@ -619,7 +619,7 @@ function QueueView({ invoices, customers, templates, formatCurrency, saveHistory
       const payload = {
         to: selectedClient.customerData['Email ID'],
         cc: customCc,
-        subject: `Pending Invoices Summary - ${selectedClient.customerName}`,
+        subject: `Statement of Account - ${selectedClient.customerName}`,
         htmlContent: compiledHtml,
         companyName: settings.companyName
       };
@@ -674,7 +674,7 @@ function QueueView({ invoices, customers, templates, formatCurrency, saveHistory
             </div>
             <div className="composer-field border-none">
               <span className="composer-label">Subject:</span>
-              <span className="text-sm font-medium">Pending Invoices Summary - {selectedClient.customerName}</span>
+              <span className="text-sm font-medium">Statement of Account - {selectedClient.customerName}</span>
             </div>
             <div className="composer-preview" dangerouslySetInnerHTML={{__html: compiledHtml}}></div>
           </div>
