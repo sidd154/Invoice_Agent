@@ -626,14 +626,7 @@ function QueueView({ invoices, customers, templates, formatCurrency, saveHistory
       total: grouped[cName].reduce((acc, curr) => acc + cleanAmount(curr['Invoice amount']), 0)
     };
   }).filter(c => {
-    if (!c.customerData) return false;
-    // Hide customer from first notice queue if they already have been sent a notice for their current open invoices
-    const hasAlreadyBeenSentNotice = sentHistory.some(h => 
-      h.customerName === c.customerName && 
-      h.invoiceIds && // Ensure invoiceIds exists in history record
-      c.invoices.some(inv => h.invoiceIds.includes(inv['Invoice number']))
-    );
-    return !hasAlreadyBeenSentNotice;
+    return !!c.customerData;
   });
 
   const handleReview = (client) => {
@@ -759,12 +752,85 @@ function QueueView({ invoices, customers, templates, formatCurrency, saveHistory
 }
 
 function HistoryView({ sentHistory, saveHistory }) {
+  const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState('');
+
+  const filteredHistory = sentHistory.filter(h => {
+    // 1. Search filter: matches customer name, recipient email, or invoice numbers
+    const matchesSearch = 
+      h.customerName?.toLowerCase().includes(search.toLowerCase()) ||
+      h.email?.toLowerCase().includes(search.toLowerCase()) ||
+      (h.invoiceIds && h.invoiceIds.some(id => id?.toLowerCase().includes(search.toLowerCase())));
+
+    // 2. Type filter: matches communication log type
+    const matchesType = typeFilter === 'all' || h.type === typeFilter;
+
+    // 3. Date filter: matches exact day in local timezone (YYYY-MM-DD format)
+    let matchesDate = true;
+    if (dateFilter) {
+      const recordDate = new Date(h.sentAt).toLocaleDateString('en-CA'); // YYYY-MM-DD format
+      matchesDate = recordDate === dateFilter;
+    }
+
+    return matchesSearch && matchesType && matchesDate;
+  });
+
   return (
     <div>
       <div className="mb-6">
         <h2 className="text-2xl font-bold tracking-tight">Sent History</h2>
         <p className="text-sm text-muted-foreground">Log of all outgoing communications.</p>
       </div>
+
+      {/* Spaced, premium B2B search and filter row */}
+      <div className="flex flex-wrap gap-4 mb-6 items-end">
+        <div style={{ flex: '2', minWidth: '200px' }}>
+          <label className="text-[11px] font-semibold text-muted-foreground mb-1.5 block uppercase tracking-wider">Search Recipient or Invoice</label>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={14}/>
+            <input 
+              className="input pl-8 text-xs h-9" 
+              placeholder="Search client, email, or invoice..." 
+              value={search} 
+              onChange={e => setSearch(e.target.value)} 
+            />
+          </div>
+        </div>
+
+        <div style={{ flex: '1', minWidth: '150px' }}>
+          <label className="text-[11px] font-semibold text-muted-foreground mb-1.5 block uppercase tracking-wider">Filter by Type</label>
+          <select 
+            className="input text-xs h-9 font-medium"
+            value={typeFilter}
+            onChange={e => setTypeFilter(e.target.value)}
+          >
+            <option value="all">All Types</option>
+            <option value="Automated Reminder">Automated Reminder</option>
+            <option value="First Notice">First Notice</option>
+          </select>
+        </div>
+
+        <div style={{ flex: '1', minWidth: '150px' }}>
+          <label className="text-[11px] font-semibold text-muted-foreground mb-1.5 block uppercase tracking-wider">Filter by Date</label>
+          <input 
+            type="date"
+            className="input text-xs h-9 font-medium"
+            value={dateFilter}
+            onChange={e => setDateFilter(e.target.value)}
+          />
+        </div>
+
+        {(search || typeFilter !== 'all' || dateFilter) && (
+          <button 
+            onClick={() => { setSearch(''); setTypeFilter('all'); setDateFilter(''); }} 
+            className="btn btn-ghost text-xs h-9 px-3 text-muted-foreground hover:text-foreground border-border border"
+          >
+            Reset Filters
+          </button>
+        )}
+      </div>
+
       <div className="table-container">
         <table>
           <thead>
@@ -776,7 +842,7 @@ function HistoryView({ sentHistory, saveHistory }) {
             </tr>
           </thead>
           <tbody>
-            {sentHistory.map(h => (
+            {filteredHistory.map(h => (
               <tr key={h.id}>
                 <td className="text-muted-foreground whitespace-nowrap">{new Date(h.sentAt).toLocaleString([], {dateStyle:'short', timeStyle:'short'})}</td>
                 <td>
@@ -789,7 +855,13 @@ function HistoryView({ sentHistory, saveHistory }) {
             ))}
           </tbody>
         </table>
-        {sentHistory.length === 0 && <div className="p-16 text-center text-muted-foreground text-sm">No emails have been sent yet.</div>}
+        {filteredHistory.length === 0 && (
+          <div className="p-16 text-center text-muted-foreground text-sm">
+            {sentHistory.length === 0 
+              ? "No emails have been sent yet." 
+              : "No logs match your filter criteria."}
+          </div>
+        )}
       </div>
     </div>
   )
