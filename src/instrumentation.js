@@ -17,14 +17,12 @@ export async function register() {
     const cron = await import('node-cron');
     const { runAutopilotReminders } = await import('./lib/autopilot');
 
-    // Test schedule: run at 1:45 PM IST (Asia/Kolkata timezone)
-    cron.schedule('45 13 * * *', async () => {
-      console.log('[Inbuilt Autopilot] Triggering Monday outstanding invoice sync & reminders...');
+    // Check every minute to see if it matches the DB-configured days/time
+    cron.schedule('* * * * *', async () => {
       try {
-        const result = await runAutopilotReminders();
-        console.log('[Inbuilt Autopilot] Execution completed successfully:', result);
+        await runAutopilotReminders();
       } catch (err) {
-        console.error('[Inbuilt Autopilot] Execution failed:', err);
+        console.error('[Inbuilt Autopilot] Background scheduler execution failed:', err);
       }
     }, {
       timezone: 'Asia/Kolkata'

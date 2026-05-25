@@ -1,13 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 import { fetchSheetsData } from '@/lib/sheets';
-import { Resend } from 'resend';
+import { sendEmail } from './mail';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
-
-const resend = new Resend(process.env.RESEND_API_KEY || 're_7yMQUyLv_75aMdQZ9GT2WcMyp2kZPg58e');
 
 const cleanAmount = (val) => {
   if (typeof val === 'number') return val;
@@ -91,9 +89,35 @@ export async function runAutopilotReminders() {
   }
 
   if (!settings.auto_pilot) {
-    console.log('Auto-pilot is disabled in settings. Skipping cron run.');
-    return { success: true, message: 'Auto-pilot is disabled in settings. Skipping.' };
+    return { success: true, message: 'Auto-pilot is disabled.' };
   }
+
+  // Time & Day matching in Asia/Kolkata timezone
+  const now = new Date();
+  const kolkataStr = now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+  const kolkataDate = new Date(kolkataStr);
+
+  const weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const currentWeekday = weekdays[kolkataDate.getDay()];
+  const currentHour = kolkataDate.getHours().toString().padStart(2, '0');
+  const currentMinute = kolkataDate.getMinutes().toString().padStart(2, '0');
+  const currentTime = `${currentHour}:${currentMinute}`;
+
+  const scheduleDays = Array.isArray(settings.schedule_days) ? settings.schedule_days : ['Monday'];
+  const scheduleTime = settings.schedule_time || '11:00';
+
+  const isScheduledDay = scheduleDays.includes(currentWeekday);
+  const isScheduledTime = currentTime === scheduleTime;
+
+  const lastRunDateStr = settings.last_autopilot_run ? new Date(settings.last_autopilot_run).toLocaleString("en-US", { timeZone: "Asia/Kolkata" }).split(',')[0] : null;
+  const todayDateStr = kolkataStr.split(',')[0];
+  const alreadyRunToday = lastRunDateStr === todayDateStr;
+
+  if (!isScheduledDay || !isScheduledTime || alreadyRunToday) {
+    return { success: true, message: 'Not scheduled for this minute or already run today.' };
+  }
+
+  console.log(`[Inbuilt Autopilot] Current scheduled slot matched! Day: ${currentWeekday}, Time: ${currentTime}. Triggering execution...`);
 
   // Fetch latest data from Google Sheets & Upsert
   const { invoices, customers } = await fetchSheetsData();
@@ -156,21 +180,16 @@ export async function runAutopilotReminders() {
           settings.company_name
         );
 
-        const emailPayload = {
-          from: `${settings.company_name || 'Billing Department'} <billing@pixelsoft.in>`,
-          to: toEmails,
-          subject: `Statement of Account - ${customerName}`,
-          html: compiledHtml,
-        };
+        try {
+          // Send email using the unified mail helper (SMTP or Resend)
+          await sendEmail({
+            to: toEmails,
+            cc: ccEmails.length > 0 ? ccEmails : null,
+            subject: `Statement of Account - ${customerName}`,
+            html: compiledHtml,
+            settings: settings
+          });
 
-        if (ccEmails.length > 0) {
-          emailPayload.cc = ccEmails;
-        }
-
-        // Send email using Resend
-        const mailRes = await resend.emails.send(emailPayload);
-
-        if (!mailRes.error) {
           // Log sent record
           const newRecord = {
             id: Math.random().toString(36).substr(2, 9),
@@ -182,8 +201,8 @@ export async function runAutopilotReminders() {
           };
           await supabase.from('sent_history').insert(newRecord);
           sentEmails.push({ customer: customerName, email: customerData['Email ID'] });
-        } else {
-          console.error(`Resend failed for ${customerName}:`, mailRes.error);
+        } catch (err) {
+          console.error(`Autopilot email dispatch failed for ${customerName}:`, err);
         }
 
         // Wait 5 seconds before sending the next email to process them one-by-one
@@ -195,6 +214,9 @@ export async function runAutopilotReminders() {
       console.warn(`Customer contact not found for open invoices under client name: ${customerName}`);
     }
   }
+
+  // Update last run timestamp in the database to mark this slot as successfully processed
+  await supabase.from('global_settings').update({ last_autopilot_run: new Date().toISOString() }).eq('id', 1);
 
   return {
     success: true,

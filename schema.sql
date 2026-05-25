@@ -33,7 +33,17 @@ CREATE TABLE IF NOT EXISTS global_settings (
   follow_up_interval INT,
   company_name VARCHAR(255),
   auto_pilot BOOLEAN DEFAULT FALSE,
-  cc_emails VARCHAR(255)
+  cc_emails VARCHAR(255),
+  email_service_provider VARCHAR(50) DEFAULT 'resend',
+  smtp_host VARCHAR(255),
+  smtp_port INT,
+  smtp_user VARCHAR(255),
+  smtp_pass TEXT,
+  smtp_secure BOOLEAN DEFAULT TRUE,
+  smtp_from_email VARCHAR(255),
+  schedule_days JSONB DEFAULT '["Monday"]'::jsonb,
+  schedule_time VARCHAR(10) DEFAULT '11:00',
+  last_autopilot_run TIMESTAMP WITH TIME ZONE
 );
 
 -- 5. Create Email Templates Table

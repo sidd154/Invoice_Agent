@@ -69,7 +69,21 @@ export default function App() {
         }
         if (setRes.data && setRes.data.length > 0) {
           const s = setRes.data[0];
-          setSettings({ followUpInterval: s.follow_up_interval, companyName: s.company_name, autoPilot: s.auto_pilot, ccEmails: s.cc_emails || '' });
+          setSettings({
+            followUpInterval: s.follow_up_interval,
+            companyName: s.company_name,
+            autoPilot: s.auto_pilot,
+            ccEmails: s.cc_emails || '',
+            emailServiceProvider: s.email_service_provider || 'resend',
+            smtpHost: s.smtp_host || '',
+            smtpPort: s.smtp_port || 587,
+            smtpUser: s.smtp_user || '',
+            smtpPass: s.smtp_pass || '',
+            smtpSecure: s.smtp_secure !== false,
+            smtpFromEmail: s.smtp_from_email || '',
+            scheduleDays: Array.isArray(s.schedule_days) ? s.schedule_days : ['Monday'],
+            scheduleTime: s.schedule_time || '11:00'
+          });
         }
         if (tempRes.data && tempRes.data.length > 0) {
           const t = tempRes.data[0];
@@ -339,7 +353,22 @@ export default function App() {
             await supabase.from('email_templates').upsert({ id: 1, first_notice: t.firstNotice, follow_up: t.followUp }); 
           }} settings={settings} setSettings={async (s) => { 
             setSettings(s); 
-            await supabase.from('global_settings').upsert({ id: 1, follow_up_interval: s.followUpInterval, company_name: s.companyName, auto_pilot: s.autoPilot, cc_emails: s.ccEmails }); 
+            await supabase.from('global_settings').upsert({ 
+              id: 1, 
+              follow_up_interval: s.followUpInterval, 
+              company_name: s.companyName, 
+              auto_pilot: s.autoPilot, 
+              cc_emails: s.ccEmails,
+              email_service_provider: s.emailServiceProvider,
+              smtp_host: s.smtpHost,
+              smtp_port: s.smtpPort ? parseInt(s.smtpPort) : null,
+              smtp_user: s.smtpUser,
+              smtp_pass: s.smtpPass,
+              smtp_secure: s.smtpSecure,
+              smtp_from_email: s.smtpFromEmail,
+              schedule_days: s.scheduleDays,
+              schedule_time: s.scheduleTime
+            }); 
           }} resetData={resetData} />}
         </div>
       </div>
@@ -769,12 +798,48 @@ function HistoryView({ sentHistory, saveHistory }) {
 
 
 function TemplatesView({ templates, setTemplates, settings, setSettings, resetData }) {
+  const [showPassword, setShowPassword] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
+  const [testResult, setTestResult] = useState({ message: '', success: null });
+
+  const handleTestSmtp = async () => {
+    if (!settings.smtpHost || !settings.smtpPort || !settings.smtpUser || !settings.smtpPass) {
+      setTestResult({ message: "Please fill in Host, Port, Username, and Password first.", success: false });
+      return;
+    }
+    setIsTesting(true);
+    setTestResult({ message: "", success: null });
+    try {
+      const res = await fetch('/api/test-smtp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          host: settings.smtpHost,
+          port: settings.smtpPort,
+          secure: settings.smtpSecure,
+          user: settings.smtpUser,
+          pass: settings.smtpPass,
+          fromEmail: settings.smtpFromEmail
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setTestResult({ message: `Connection Successful! A test email has been sent to ${settings.smtpUser}. 🎉`, success: true });
+      } else {
+        setTestResult({ message: data.error?.message || "Failed to establish SMTP connection handshake.", success: false });
+      }
+    } catch (err) {
+      setTestResult({ message: err.message || "Failed to reach SMTP tester API.", success: false });
+    }
+    setIsTesting(false);
+  };
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">System Settings</h2>
-          <p className="text-sm text-muted-foreground">Configure global variables and email templates.</p>
+          <p className="text-sm text-muted-foreground">Configure global variables, SMTP settings, and email templates.</p>
         </div>
       </div>
 
@@ -806,7 +871,128 @@ function TemplatesView({ templates, setTemplates, settings, setSettings, resetDa
             </div>
 
             <div className="col-span-2 pt-4 border-t border-border mt-2">
-              <label className="flex items-center gap-3 cursor-pointer">
+              <label className="text-xs font-semibold text-muted-foreground mb-3 block uppercase tracking-wider">Email Dispatch Provider</label>
+              <div className="grid grid-cols-2 gap-4">
+                <button 
+                  type="button" 
+                  onClick={() => setSettings({...settings, emailServiceProvider: 'resend'})}
+                  className={`btn text-sm font-semibold h-11 flex items-center justify-center gap-2 transition-all ${settings.emailServiceProvider === 'resend' ? 'btn-primary shadow-glow' : 'btn-outline border-border'}`}
+                >
+                  Resend Cloud API
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setSettings({...settings, emailServiceProvider: 'smtp'})}
+                  className={`btn text-sm font-semibold h-11 flex items-center justify-center gap-2 transition-all ${settings.emailServiceProvider === 'smtp' ? 'btn-primary shadow-glow' : 'btn-outline border-border'}`}
+                >
+                  Custom SMTP Server
+                </button>
+              </div>
+            </div>
+
+            {settings.emailServiceProvider === 'smtp' && (
+              <div className="col-span-2 pt-6 border-t border-border mt-2 animate-fade-down">
+                <h4 className="text-sm font-bold mb-4 text-foreground flex items-center gap-2">🔌 SMTP Configurations</h4>
+                <div className="grid grid-cols-6 gap-4">
+                  <div className="col-span-4">
+                    <label className="text-[11px] font-semibold text-muted-foreground mb-1 block uppercase tracking-wider">SMTP Host</label>
+                    <input 
+                      className="input h-10" 
+                      value={settings.smtpHost || ''} 
+                      onChange={e => setSettings({...settings, smtpHost: e.target.value})} 
+                      placeholder="smtp.gmail.com"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-[11px] font-semibold text-muted-foreground mb-1 block uppercase tracking-wider">SMTP Port</label>
+                    <input 
+                      type="number"
+                      className="input h-10" 
+                      value={settings.smtpPort || ''} 
+                      onChange={e => setSettings({...settings, smtpPort: e.target.value})} 
+                      placeholder="587"
+                    />
+                  </div>
+
+                  <div className="col-span-3">
+                    <label className="text-[11px] font-semibold text-muted-foreground mb-1 block uppercase tracking-wider">Username / Email Address</label>
+                    <input 
+                      className="input h-10" 
+                      value={settings.smtpUser || ''} 
+                      onChange={e => setSettings({...settings, smtpUser: e.target.value})} 
+                      placeholder="billing@pixelsoft.in"
+                    />
+                  </div>
+                  <div className="col-span-3 relative">
+                    <label className="text-[11px] font-semibold text-muted-foreground mb-1 block uppercase tracking-wider">Password / App Password</label>
+                    <div className="relative">
+                      <input 
+                        type={showPassword ? "text" : "password"}
+                        className="input h-10 pr-10" 
+                        value={settings.smtpPass || ''} 
+                        onChange={e => setSettings({...settings, smtpPass: e.target.value})} 
+                        placeholder="••••••••••••••••"
+                      />
+                      <button 
+                        type="button" 
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none"
+                      >
+                        <Eye size={16} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="col-span-3">
+                    <label className="text-[11px] font-semibold text-muted-foreground mb-1 block uppercase tracking-wider">Custom Sender Address (Optional)</label>
+                    <input 
+                      className="input h-10" 
+                      value={settings.smtpFromEmail || ''} 
+                      onChange={e => setSettings({...settings, smtpFromEmail: e.target.value})} 
+                      placeholder="billing@pixelsoft.in"
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">If blank, SMTP defaults to your Username.</p>
+                  </div>
+                  <div className="col-span-3 flex items-center pt-5">
+                    <label className="flex items-center gap-2.5 cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        className="checkbox" 
+                        checked={settings.smtpSecure || false} 
+                        onChange={e => setSettings({...settings, smtpSecure: e.target.checked})} 
+                      />
+                      <span className="text-xs font-bold text-foreground">Secure Connection (SSL/TLS)</span>
+                    </label>
+                  </div>
+
+                  <div className="col-span-6 pt-2">
+                    <div className="flex items-center gap-3">
+                      <button 
+                        type="button" 
+                        onClick={handleTestSmtp} 
+                        disabled={isTesting}
+                        className="btn btn-outline text-xs h-9 px-4 font-bold border-accent/20 text-accent hover:bg-accent/10 flex items-center gap-2"
+                      >
+                        {isTesting ? "Testing Handshake..." : "Test Connection Setup"}
+                      </button>
+                      {testResult.success === true && (
+                        <span className="text-xs font-bold text-emerald-500 bg-emerald-500/10 px-3 py-1 rounded-md animate-fade-up">
+                          {testResult.message}
+                        </span>
+                      )}
+                      {testResult.success === false && (
+                        <span className="text-xs font-semibold text-rose-500 bg-rose-500/10 px-3 py-1 rounded-md animate-fade-up">
+                          {testResult.message}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="col-span-2 pt-4 border-t border-border mt-2">
+              <label className="flex items-center gap-3 cursor-pointer mb-4">
                 <div className={`w-10 h-5 rounded-full transition-colors relative ${settings.autoPilot ? 'bg-primary' : 'bg-secondary'}`}>
                   <div className={`absolute top-0.5 left-0.5 bg-background w-4 h-4 rounded-full transition-transform ${settings.autoPilot ? 'translate-x-5' : 'translate-x-0'}`}></div>
                 </div>
@@ -817,10 +1003,52 @@ function TemplatesView({ templates, setTemplates, settings, setSettings, resetDa
                   onChange={e => setSettings({...settings, autoPilot: e.target.checked})} 
                 />
                 <div>
-                  <span className="text-sm font-bold block">Enable Auto-Pilot (Cron Job)</span>
-                  <span className="text-xs text-muted-foreground">When enabled, the inbuilt background scheduler will automatically sync Google Sheets and dispatch outstanding invoice reminders every Monday at 11:00 AM IST.</span>
+                  <span className="text-sm font-bold block">Enable Auto-Pilot (Background Scheduler)</span>
+                  <span className="text-xs text-muted-foreground">When active, the background worker automatically checks your settings and dispatches invoice statement summaries.</span>
                 </div>
               </label>
+
+              {settings.autoPilot && (
+                <div className="p-4 bg-secondary/30 border border-border/50 rounded-lg animate-fade-down mt-2">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2"><Clock size={14}/> Background Dispatch Schedule</h4>
+                  <div className="grid grid-cols-6 gap-6">
+                    <div className="col-span-4">
+                      <label className="text-[11px] font-semibold text-muted-foreground mb-2 block uppercase tracking-wider">Weekly Send Days (Select Multiple)</label>
+                      <div className="flex flex-wrap gap-2">
+                        {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map(day => {
+                          const activeDays = Array.isArray(settings.scheduleDays) ? settings.scheduleDays : ['Monday'];
+                          const isSelected = activeDays.includes(day);
+                          return (
+                            <button
+                              key={day}
+                              type="button"
+                              onClick={() => {
+                                const newDays = isSelected
+                                  ? activeDays.filter(d => d !== day)
+                                  : [...activeDays, day];
+                                // Ensure at least one day is selected
+                                setSettings({...settings, scheduleDays: newDays.length > 0 ? newDays : [day]});
+                              }}
+                              className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-all ${isSelected ? 'bg-primary border-primary text-white shadow-glow' : 'bg-transparent border-border text-muted-foreground hover:text-foreground'}`}
+                            >
+                              {day}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div className="col-span-2">
+                      <label className="text-[11px] font-semibold text-muted-foreground mb-2 block uppercase tracking-wider">Send Time (IST)</label>
+                      <input 
+                        type="time"
+                        className="input h-10 text-sm" 
+                        value={settings.scheduleTime || '11:00'} 
+                        onChange={e => setSettings({...settings, scheduleTime: e.target.value})} 
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

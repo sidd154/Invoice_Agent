@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
-import { Resend } from 'resend';
+import { createClient } from '@supabase/supabase-js';
+import { sendEmail } from '@/lib/mail';
 
-const resend = new Resend(process.env.RESEND_API_KEY || 're_7yMQUyLv_75aMdQZ9GT2WcMyp2kZPg58e');
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
 function parseEmails(emailString) {
   if (!emailString || typeof emailString !== 'string') return [];
@@ -13,9 +17,16 @@ function parseEmails(emailString) {
 
 export async function POST(req) {
   try {
-    const { to, cc, subject, htmlContent, companyName } = await req.json();
+    const { to, cc, subject, htmlContent } = await req.json();
 
-    const senderName = companyName || 'Billing Department';
+    // Fetch the active settings from Supabase
+    const { data: settingsList } = await supabase.from('global_settings').select('*').eq('id', 1);
+    const settings = settingsList?.[0];
+
+    if (!settings) {
+      return NextResponse.json({ error: { message: "System settings not initialized in Supabase." } }, { status: 400 });
+    }
+
     const toEmails = parseEmails(to);
     const ccEmails = cc ? parseEmails(cc) : [];
 
@@ -23,24 +34,16 @@ export async function POST(req) {
       return NextResponse.json({ error: { message: "No valid recipient email address found." } }, { status: 400 });
     }
 
-    const emailPayload = {
-      from: `${senderName} <billing@pixelsoft.in>`,
+    // Dispatch via centralized helper (respecting either Resend or SMTP settings)
+    const mailResult = await sendEmail({
       to: toEmails,
+      cc: ccEmails.length > 0 ? ccEmails : null,
       subject: subject,
       html: htmlContent,
-    };
+      settings: settings
+    });
 
-    if (ccEmails.length > 0) {
-      emailPayload.cc = ccEmails;
-    }
-
-    const data = await resend.emails.send(emailPayload);
-
-    if (data.error) {
-      return NextResponse.json({ error: data.error }, { status: 400 });
-    }
-
-    return NextResponse.json({ success: true, data });
+    return NextResponse.json({ success: true, data: mailResult });
   } catch (error) {
     return NextResponse.json({ error: { message: error.message } }, { status: 500 });
   }
