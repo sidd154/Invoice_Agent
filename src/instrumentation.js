@@ -19,8 +19,12 @@ export async function register() {
 
     // Check every minute to see if it matches the DB-configured days/time
     cron.schedule('* * * * *', async () => {
+      console.log(`[Inbuilt Autopilot] Background scheduler heartbeat - ${new Date().toISOString()}`);
       try {
-        await runAutopilotReminders();
+        const result = await runAutopilotReminders();
+        if (result && !result.message?.includes('Not scheduled')) {
+          console.log('[Inbuilt Autopilot] Background scheduler execution completed:', result);
+        }
       } catch (err) {
         console.error('[Inbuilt Autopilot] Background scheduler execution failed:', err);
       }

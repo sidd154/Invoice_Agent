@@ -33,6 +33,7 @@ export default function App() {
   const [invoices, setInvoices] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [sentHistory, setSentHistory] = useState([]);
+  const [agentMappings, setAgentMappings] = useState([]);
   const [templates, setTemplates] = useState(DEFAULT_TEMPLATES);
   const [settings, setSettings] = useState({ followUpInterval: 10, companyName: 'Enterprise Finance', ccEmails: '' });
   const [dataExists, setDataExists] = useState(false);
@@ -47,12 +48,13 @@ export default function App() {
     
     const initData = async () => {
       try {
-        const [invRes, custRes, histRes, setRes, tempRes] = await Promise.all([
+        const [invRes, custRes, histRes, setRes, tempRes, mappingsRes] = await Promise.all([
           supabase.from('invoices').select('*'),
           supabase.from('customers').select('*'),
           supabase.from('sent_history').select('*').order('sent_at', { ascending: false }),
           supabase.from('global_settings').select('*').eq('id', 1),
-          supabase.from('email_templates').select('*').eq('id', 1)
+          supabase.from('email_templates').select('*').eq('id', 1),
+          supabase.from('agent_mappings').select('*')
         ]);
 
         if (invRes.data && invRes.data.length > 0) {
@@ -66,6 +68,9 @@ export default function App() {
           setSentHistory(histRes.data.map(h => ({
             id: h.id, customerName: h.customer_name, email: h.email, type: h.type, sentAt: h.sent_at, invoiceIds: h.invoice_ids
           })));
+        }
+        if (mappingsRes.data) {
+          setAgentMappings(mappingsRes.data);
         }
         if (setRes.data && setRes.data.length > 0) {
           const s = setRes.data[0];
@@ -121,6 +126,13 @@ export default function App() {
     setDataExists(true);
 
     try {
+      // 1. Wipe existing invoices and customers from Supabase so deleted sheet entries are removed
+      await Promise.all([
+        supabase.from('invoices').delete().neq('id', 0),
+        supabase.from('customers').delete().neq('id', 0)
+      ]);
+
+      // 2. Format and insert new authorative invoice entries
       const formattedInvoices = newInvoices.map(inv => ({
         invoice_number: inv['Invoice number'],
         customer: inv.Customer,
@@ -130,16 +142,26 @@ export default function App() {
         raw_data: inv
       }));
       if (formattedInvoices.length > 0) {
-        await supabase.from('invoices').upsert(formattedInvoices, { onConflict: 'invoice_number' });
+        await supabase.from('invoices').insert(formattedInvoices);
       }
 
-      const formattedCustomers = newCustomers.map(c => ({
-        name: c['Customer Name'],
-        email: c['Email ID'],
-        raw_data: c
-      }));
+      // 3. Format and insert new authorative customer entries
+      const formattedCustomers = newCustomers.map(c => {
+        const emailVal = c['Email ID'] || c['Mail Id'] || c.email || '';
+        const nameVal = c['Customer Name'] || c.name || '';
+        return {
+          name: nameVal,
+          email: emailVal,
+          raw_data: {
+            ...c,
+            'Customer Name': nameVal,
+            'Email ID': emailVal,
+            'Mail Id': emailVal
+          }
+        };
+      });
       if (formattedCustomers.length > 0) {
-        await supabase.from('customers').upsert(formattedCustomers, { onConflict: 'name' });
+        await supabase.from('customers').insert(formattedCustomers);
       }
     } catch(err) {
       console.error("Failed to persist data:", err);
@@ -192,26 +214,9 @@ export default function App() {
       if (!res.ok) throw new Error(data.error || 'Failed to sync');
       
       if (data.invoices && data.customers) {
-        // Merge logic
-        const newInvoices = [...invoices];
-        data.invoices.forEach(newInv => {
-          const idx = newInvoices.findIndex(i => i['Invoice number'] === newInv['Invoice number']);
-          if (idx > -1) {
-            newInvoices[idx] = newInv;
-          } else {
-            newInvoices.push(newInv);
-          }
-        });
-
-        const newCustomers = [...customers];
-        data.customers.forEach(newCust => {
-          const idx = newCustomers.findIndex(c => c['Customer Name'] === newCust['Customer Name']);
-          if (idx > -1) {
-            newCustomers[idx] = newCust;
-          } else {
-            newCustomers.push(newCust);
-          }
-        });
+        // Overwrite logic to maintain an exact mirror of Google Sheets and clean stale data
+        const newInvoices = data.invoices;
+        const newCustomers = data.customers;
 
         await saveData(newInvoices, newCustomers);
         alert("Successfully synced with Google Sheets!");
@@ -226,7 +231,7 @@ export default function App() {
   const formatCurrency = (val) => {
     const num = cleanAmount(val);
     if(isNaN(num)) return val;
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num);
+    return 'Rs. ' + new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num);
   };
 
   if (!isLoaded) return <div className="h-screen flex items-center justify-center">Loading Workspace...</div>;
@@ -339,14 +344,14 @@ export default function App() {
         </div>
         
         <div className="p-8 max-w-6xl mx-auto animate-fade-up">
-          {activeTab === 'dashboard' && <DashboardView invoices={invoices} customers={customers} sentHistory={sentHistory} setActiveTab={setActiveTab} />}
+          {activeTab === 'dashboard' && <DashboardView invoices={invoices} customers={customers} sentHistory={sentHistory} setActiveTab={setActiveTab} formatCurrency={formatCurrency} />}
           {activeTab === 'invoices' && (
             <InvoicesView invoices={invoices} formatCurrency={formatCurrency} />
           )}
           {activeTab === 'customers' && (
             <CustomersView customers={customers} />
           )}
-          {activeTab === 'queue' && <QueueView invoices={invoices} customers={customers} templates={templates} formatCurrency={formatCurrency} saveHistory={saveHistory} sentHistory={sentHistory} settings={settings} />}
+          {activeTab === 'queue' && <QueueView invoices={invoices} customers={customers} templates={templates} formatCurrency={formatCurrency} saveHistory={saveHistory} sentHistory={sentHistory} settings={settings} agentMappings={agentMappings} />}
           {activeTab === 'history' && <HistoryView sentHistory={sentHistory} saveHistory={saveHistory} />}
           {activeTab === 'templates' && <TemplatesView templates={templates} setTemplates={async (t) => { 
             setTemplates(t); 
@@ -369,7 +374,7 @@ export default function App() {
               schedule_days: s.scheduleDays,
               schedule_time: s.scheduleTime
             }); 
-          }} resetData={resetData} />}
+          }} resetData={resetData} agentMappings={agentMappings} setAgentMappings={setAgentMappings} />}
         </div>
       </div>
     </div>
@@ -401,7 +406,7 @@ function SidebarBtn({icon, label, active, badge, onClick}) {
 
 // --- VIEWS ---
 
-function DashboardView({ invoices, customers, sentHistory, setActiveTab }) {
+function DashboardView({ invoices, customers, sentHistory, setActiveTab, formatCurrency }) {
   const totalRevenue = invoices.reduce((acc, curr) => acc + cleanAmount(curr['Invoice amount']), 0);
   const openInvoices = invoices.filter(i => i.status?.toLowerCase() === 'open');
   const pendingAmount = openInvoices.reduce((acc, curr) => acc + cleanAmount(curr['Invoice amount']), 0);
@@ -422,12 +427,12 @@ function DashboardView({ invoices, customers, sentHistory, setActiveTab }) {
         <div className="card stat-card relative">
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-primary/20"></div>
           <span className="label"><DollarSign size={16} className="text-primary"/> Total Pipeline</span>
-          <span className="value">{totalRevenue.toLocaleString('en-US', {style:'currency', currency:'USD'})}</span>
+          <span className="value">{formatCurrency(totalRevenue)}</span>
         </div>
         <div className="card stat-card relative">
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-destructive to-destructive/20"></div>
           <span className="label"><AlertCircle size={16} className="text-destructive"/> Outstanding Balance</span>
-          <span className="value text-destructive">{pendingAmount.toLocaleString('en-US', {style:'currency', currency:'USD'})}</span>
+          <span className="value text-destructive">{formatCurrency(pendingAmount)}</span>
         </div>
         <div className="card stat-card relative">
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-accent to-accent/20"></div>
@@ -470,7 +475,9 @@ function InvoicesView({ invoices, formatCurrency }) {
   
   const filtered = invoices.filter(i => 
     i.Customer?.toLowerCase().includes(filter.toLowerCase()) || 
-    i['Invoice number']?.toLowerCase().includes(filter.toLowerCase())
+    i['Invoice number']?.toLowerCase().includes(filter.toLowerCase()) ||
+    (i['Category'] || '').toLowerCase().includes(filter.toLowerCase()) ||
+    (i['me'] || '').toLowerCase().includes(filter.toLowerCase())
   );
 
   return (
@@ -483,32 +490,42 @@ function InvoicesView({ invoices, formatCurrency }) {
         <div className="flex items-center gap-3">
           <div className="relative">
             <Search className="search-icon" size={14}/>
-            <input className="input pl-8 w-64 text-xs h-9" placeholder="Search customer or ID..." value={filter} onChange={e => setFilter(e.target.value)} />
+            <input className="input pl-8 w-64 text-xs h-9" placeholder="Search customer, ID, category or agent..." value={filter} onChange={e => setFilter(e.target.value)} />
           </div>
         </div>
       </div>
 
-      <div className="table-container">
-        <table>
+      <div className="table-container" style={{ overflowX: 'auto' }}>
+        <table style={{ minWidth: '1000px' }}>
           <thead>
             <tr>
               <th>Date</th>
+              <th>Type</th>
               <th>Inv #</th>
               <th>Customer</th>
-              <th className="text-right">Amount</th>
+              <th className="text-right">Gross</th>
+              <th className="text-right">GST</th>
+              <th className="text-right font-bold">Net Value</th>
+              <th>Category</th>
+              <th className="text-center">Agent</th>
               <th className="text-center">Status</th>
             </tr>
           </thead>
           <tbody>
-            {filtered.map(inv => (
-              <tr key={inv.id}>
-                <td className="text-muted-foreground">{inv.Date}</td>
-                <td className="font-medium">{inv['Invoice number']}</td>
-                <td>{inv.Customer}</td>
-                <td className="text-right font-medium">{formatCurrency(inv['Invoice amount'])}</td>
+            {filtered.map((inv, idx) => (
+              <tr key={inv['Invoice number'] || idx}>
+                <td className="text-muted-foreground">{inv.Date || inv['Invoice date']}</td>
+                <td className="text-xs font-semibold text-primary">{inv['Invoice Type'] || 'Tax Invoice'}</td>
+                <td className="font-semibold text-foreground">{inv['Invoice number'] || inv['Invoice No']}</td>
+                <td>{inv.Customer || inv.Particulars}</td>
+                <td className="text-right text-muted-foreground">{formatCurrency(inv['Gross Invoice'])}</td>
+                <td className="text-right text-muted-foreground">{formatCurrency(inv['GST'])}</td>
+                <td className="text-right font-bold text-destructive">{formatCurrency(inv['Net Invoice Value'] || inv['Invoice amount'])}</td>
+                <td className="text-xs text-muted-foreground max-w-[150px] truncate">{inv['Category'] || '-'}</td>
+                <td className="text-center text-xs font-medium bg-secondary/30 px-2 py-0.5 rounded-full">{inv['me'] || '-'}</td>
                 <td className="text-center">
                   <span className={`badge ${inv.status?.toLowerCase() === 'open' ? 'badge-open' : 'badge-closed'}`}>
-                    {inv.status}
+                    {inv.status || inv['Notification'] || 'Open'}
                   </span>
                 </td>
               </tr>
@@ -540,9 +557,9 @@ function CustomersView({ customers }) {
           </thead>
           <tbody>
             {customers.map((c, index) => (
-              <tr key={c['Customer Name'] || index}>
-                <td className="font-medium text-foreground">{c['Customer Name']}</td>
-                <td className="text-muted-foreground">{c['Email ID']}</td>
+              <tr key={(c['Customer Name'] || c.name || index)}>
+                <td className="font-medium text-foreground">{c['Customer Name'] || c.name}</td>
+                <td className="text-muted-foreground">{c['Email ID'] || c['Mail Id'] || c.email || ''}</td>
               </tr>
             ))}
           </tbody>
@@ -552,27 +569,72 @@ function CustomersView({ customers }) {
   )
 }
 
-function compileEmailHtml(customer, customerInvoices, templateStr, formatCurrency, lastSentDate = null, companyName = "Enterprise Finance") {
-  const pendingAmount = customerInvoices.reduce((acc, curr) => acc + cleanAmount(curr['Invoice amount']), 0);
+function generateTypeTableHtml(type, invoices, formatCurrency) {
+  if (!invoices || invoices.length === 0) return '';
   
-  // 1. Compile the invoice table HTML beautifully
-  let tableHtml = `<table style="width:100%; border-collapse: collapse; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; margin: 24px 0; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">`;
-  tableHtml += `<tr style="background-color: #f8fafc; border-bottom: 1px solid #cbd5e1; text-align: left; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; font-size: 11px; font-weight: 700;">
-    <th style="padding: 12px 16px;">Date</th>
-    <th style="padding: 12px 16px;">Invoice Number</th>
-    <th style="padding: 12px 16px; text-align: right;">Amount</th>
+  let html = `<div style="margin-top: 24px; margin-bottom: 28px;">`;
+  html += `<h3 style="font-size: 15px; font-weight: 700; color: #1e3a8a; margin: 0 0 12px 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; text-transform: uppercase; letter-spacing: 0.025em;">${type}s</h3>`;
+  html += `<table style="width:100%; border-collapse: collapse; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">`;
+  
+  // Table Headers
+  html += `<tr style="background-color: #f8fafc; border-bottom: 1px solid #cbd5e1; text-align: left; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;">
+    <th style="padding: 10px 12px;">Date</th>
+    <th style="padding: 10px 12px;">Invoice No</th>
+    <th style="padding: 10px 12px; text-align: right;">Gross Invoice</th>
+    <th style="padding: 10px 12px; text-align: right;">GST</th>
+    <th style="padding: 10px 12px; text-align: right;">Net Value</th>
+    <th style="padding: 10px 12px;">Category</th>
   </tr>`;
   
-  customerInvoices.forEach(inv => {
-    tableHtml += `<tr style="border-bottom: 1px solid #e2e8f0; color: #0f172a;">
-      <td style="padding: 12px 16px;">${inv['Invoice date'] || inv.Date}</td>
-      <td style="padding: 12px 16px; font-weight: 600; color: #2563eb;">${inv['Invoice number']}</td>
-      <td style="padding: 12px 16px; text-align: right; color: #dc2626; font-weight: 700;">${formatCurrency(inv['Invoice amount'])}</td>
+  // Table Rows
+  let subtotal = 0;
+  invoices.forEach(inv => {
+    const gross = cleanAmount(inv['Gross Invoice']);
+    const gst = cleanAmount(inv['GST']);
+    const net = cleanAmount(inv['Net Invoice Value'] || inv['Invoice amount']);
+    subtotal += net;
+    
+    html += `<tr style="border-bottom: 1px solid #e2e8f0; color: #0f172a;">
+      <td style="padding: 10px 12px; white-space: nowrap;">${inv['Date'] || inv['Invoice date'] || inv.Date}</td>
+      <td style="padding: 10px 12px; font-weight: 600; color: #2563eb;">${inv['Invoice No'] || inv['Invoice number']}</td>
+      <td style="padding: 10px 12px; text-align: right;">${formatCurrency(gross)}</td>
+      <td style="padding: 10px 12px; text-align: right; color: #475569;">${formatCurrency(gst)}</td>
+      <td style="padding: 10px 12px; text-align: right; color: #dc2626; font-weight: 700;">${formatCurrency(net)}</td>
+      <td style="padding: 10px 12px; color: #475569;">${inv['Category'] || ''}</td>
     </tr>`;
   });
-  tableHtml += `</table>`;
+  
+  html += `</table>`;
+  
+  // Specific Subtotal Below Table
+  html += `<div style="text-align: right; margin-top: 10px; font-size: 13px; color: #0f172a; font-weight: 700;">
+    Subtotal ${type} Net: <span style="color: #dc2626; font-size: 14px;">${formatCurrency(subtotal)}</span>
+  </div>`;
+  html += `</div>`;
+  
+  return html;
+}
 
-  // 2. Escape HTML and format the plain text template to HTML by replacing newlines with <br>
+function compileEmailHtml(customer, customerInvoices, templateStr, formatCurrency, lastSentDate = null, companyName = "Enterprise Finance") {
+  const pendingAmount = customerInvoices.reduce((acc, curr) => acc + cleanAmount(curr['Net Invoice Value'] || curr['Invoice amount']), 0);
+  
+  // Group by Invoice Type
+  const groupedByType = {};
+  customerInvoices.forEach(inv => {
+    let type = (inv['Invoice Type'] || 'Tax Invoice').trim();
+    if (!groupedByType[type]) {
+      groupedByType[type] = [];
+    }
+    groupedByType[type].push(inv);
+  });
+  
+  // Generate HTML for each type
+  let tablesHtml = '';
+  Object.keys(groupedByType).sort().forEach(type => {
+    tablesHtml += generateTypeTableHtml(type, groupedByType[type], formatCurrency);
+  });
+  
+  // Replace placeholders
   let formattedTemplate = templateStr
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -583,19 +645,19 @@ function compileEmailHtml(customer, customerInvoices, templateStr, formatCurrenc
     .replace(/\{\{last_sent_date\}\}/g, lastSentDate ? `<strong>${new Date(lastSentDate).toLocaleDateString()}</strong>` : '')
     .replace(/\{\{invoice_table\}\}/g, '{{invoice_table_placeholder}}')
     .replace(/\n/g, '<br>')
-    .replace(/\{\{invoice_table_placeholder\}\}/g, tableHtml);
+    .replace(/\{\{invoice_table_placeholder\}\}/g, tablesHtml);
 
-  // 3. Wrap in a stunning, premium HTML email wrapper with dynamic styling
+  // Wrap in a stunning, premium HTML email wrapper with dynamic styling
   const emailWrapper = `
-    <div style="background-color: #f3f4f6; padding: 32px 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-      <div style="max-w: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); border: 1px solid #e5e7eb;">
+    <div style="background-color: #f8fafc; padding: 32px 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+      <div style="max-width: 650px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); border: 1px solid #e2e8f0;">
         <!-- Header -->
-        <div style="background-color: #1e3a8a; padding: 24px; text-align: center; color: #ffffff;">
-          <h2 style="margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.025em;">Statement of Account</h2>
-          <p style="margin: 4px 0 0 0; font-size: 12px; color: #93c5fd; text-transform: uppercase; letter-spacing: 0.05em;">${companyName}</p>
+        <div style="background-color: #1e3a8a; padding: 28px 24px; text-align: center; color: #ffffff;">
+          <h2 style="margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.025em;">Outstanding Balance Reminder</h2>
+          <p style="margin: 6px 0 0 0; font-size: 12px; color: #93c5fd; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;">${companyName}</p>
         </div>
         <!-- Body -->
-        <div style="padding: 32px 24px; color: #374151; font-size: 15px; line-height: 1.6;">
+        <div style="padding: 32px 24px; color: #334155; font-size: 15px; line-height: 1.6;">
           ${formattedTemplate}
         </div>
       </div>
@@ -605,11 +667,13 @@ function compileEmailHtml(customer, customerInvoices, templateStr, formatCurrenc
   return emailWrapper;
 }
 
-function QueueView({ invoices, customers, templates, formatCurrency, saveHistory, sentHistory, settings }) {
+
+function QueueView({ invoices, customers, templates, formatCurrency, saveHistory, sentHistory, settings, agentMappings }) {
   const [selectedClient, setSelectedClient] = useState(null);
   const [isSending, setIsSending] = useState(false);
   const [compiledHtml, setCompiledHtml] = useState("");
   const [customCc, setCustomCc] = useState("");
+  const [customTo, setCustomTo] = useState("");
 
   const openInvoices = invoices.filter(i => i.status?.toLowerCase() === 'open');
   const grouped = {};
@@ -623,23 +687,51 @@ function QueueView({ invoices, customers, templates, formatCurrency, saveHistory
       customerData: customers.find(c => c['Customer Name'] === cName),
       customerName: cName,
       invoices: grouped[cName],
-      total: grouped[cName].reduce((acc, curr) => acc + cleanAmount(curr['Invoice amount']), 0)
+      total: grouped[cName].reduce((acc, curr) => acc + cleanAmount(curr['Net Invoice Value'] || curr['Invoice amount']), 0)
     };
   }).filter(c => {
     return !!c.customerData;
   });
 
   const handleReview = (client) => {
+    const uniqueAgents = [...new Set(
+      client.invoices
+        .map(inv => (inv.me || inv.raw_data?.me || '').trim())
+        .filter(Boolean)
+    )];
+    
+    const agentEmailsMap = {};
+    (agentMappings || []).forEach(m => {
+      if (m.agent_name && m.agent_email) {
+        agentEmailsMap[m.agent_name.toLowerCase().trim()] = m.agent_email.trim();
+      }
+    });
+    
+    const agentCcs = uniqueAgents.map(a => agentEmailsMap[a.toLowerCase()]).filter(Boolean);
+    const globalCcs = settings.ccEmails ? settings.ccEmails.split(/[;,]/).map(e => e.trim()).filter(Boolean) : [];
+    const resolvedCcLine = [...new Set([...globalCcs, ...agentCcs])].join(', ');
+
     setSelectedClient(client);
     setCompiledHtml(compileEmailHtml(client.customerData, client.invoices, templates.firstNotice, formatCurrency, null, settings.companyName));
-    setCustomCc(settings.ccEmails || "");
+    setCustomCc(resolvedCcLine);
+    
+    const rawEmail = client.customerData['Email ID'] || client.customerData['Mail Id'] || client.customerData.email || "";
+    const cleanEmail = rawEmail.split(/[;,]/).map(e => e.trim()).filter(Boolean).filter(e => {
+      const lower = e.toLowerCase();
+      return !lower.includes('example.com') && !lower.includes('recipient@');
+    }).join(', ');
+    setCustomTo(cleanEmail);
   };
 
   const handleSend = async () => {
+    if (!customTo.trim()) {
+      alert("Please specify a valid recipient email address.");
+      return;
+    }
     setIsSending(true);
     try {
       const payload = {
-        to: selectedClient.customerData['Email ID'],
+        to: customTo,
         cc: customCc,
         subject: `Statement of Account - ${selectedClient.customerName}`,
         htmlContent: compiledHtml,
@@ -658,7 +750,7 @@ function QueueView({ invoices, customers, templates, formatCurrency, saveHistory
       const newRecord = {
         id: Math.random().toString(36).substr(2, 9),
         customerName: selectedClient.customerName,
-        email: selectedClient.customerData['Email ID'],
+        email: customTo,
         type: 'First Notice',
         sentAt: new Date().toISOString(),
         invoiceIds: selectedClient.invoices.map(i => i['Invoice number'])
@@ -673,43 +765,50 @@ function QueueView({ invoices, customers, templates, formatCurrency, saveHistory
 
   if(selectedClient) {
     return (
-      <div className="animate-fade-up max-w-3xl m-auto">
+      <div className="composer-window animate-fade-up max-w-3xl m-auto">
         <button onClick={() => setSelectedClient(null)} className="btn btn-ghost mb-6 text-muted-foreground hover:text-foreground pl-0">← Back to Send Queue</button>
-        <div className="composer-window">
-          <div className="composer-header">
-            <h2 className="text-sm font-semibold">New Message</h2>
+        <div className="composer-window border border-border rounded-xl overflow-hidden shadow-glow">
+          <div className="composer-header px-6 py-4 bg-secondary border-b border-border">
+            <h2 className="text-sm font-bold tracking-tight">Review Outstanding Statement</h2>
           </div>
-          <div className="composer-body">
-            <div className="composer-field">
-              <span className="composer-label">To:</span>
-              <span className="text-sm font-medium">{selectedClient.customerData['Email ID']}</span>
-            </div>
-            <div className="composer-field animate-fade-down">
-              <span className="composer-label">CC:</span>
+          <div className="composer-body p-6 flex flex-col gap-4">
+            <div className="composer-field flex items-center py-2.5 border-b border-border">
+              <span className="composer-label w-16 text-xs font-bold text-muted-foreground uppercase tracking-wider">To:</span>
               <input 
                 type="text"
                 className="bg-transparent border-none text-sm text-foreground focus:outline-none w-full p-0 font-medium" 
-                placeholder="No CC addresses configured" 
+                placeholder="recipient@example.com" 
+                value={customTo} 
+                onChange={e => setCustomTo(e.target.value)} 
+              />
+            </div>
+            <div className="composer-field flex items-center py-2.5 border-b border-border animate-fade-down">
+              <span className="composer-label w-16 text-xs font-bold text-muted-foreground uppercase tracking-wider">CC:</span>
+              <input 
+                type="text"
+                className="bg-transparent border-none text-sm text-foreground focus:outline-none w-full p-0 font-medium" 
+                placeholder="No CC addresses resolved" 
                 value={customCc} 
                 onChange={e => setCustomCc(e.target.value)} 
               />
             </div>
-            <div className="composer-field border-none">
-              <span className="composer-label">Subject:</span>
-              <span className="text-sm font-medium">Statement of Account - {selectedClient.customerName}</span>
+            <div className="composer-field flex items-center py-2.5 border-b border-border border-none">
+              <span className="composer-label w-16 text-xs font-bold text-muted-foreground uppercase tracking-wider">Subject:</span>
+              <span className="text-sm font-medium text-foreground">Statement of Account - {selectedClient.customerName}</span>
             </div>
-            <div className="composer-preview" dangerouslySetInnerHTML={{__html: compiledHtml}}></div>
+            <div className="composer-preview border border-border rounded-lg overflow-y-auto max-h-[450px]" dangerouslySetInnerHTML={{__html: compiledHtml}}></div>
           </div>
-          <div className="composer-footer">
+          <div className="composer-footer px-6 py-4 bg-secondary border-t border-border flex justify-between items-center">
             <button onClick={() => setSelectedClient(null)} className="btn btn-outline border-transparent text-muted-foreground hover:text-foreground" disabled={isSending}>Discard</button>
-            <button onClick={handleSend} className="btn btn-primary shadow-glow" disabled={isSending}>
-              <SendHorizontal size={16}/> {isSending ? "Sending..." : "Approve & Send"}
+            <button onClick={handleSend} className="btn btn-primary shadow-glow h-10 px-5 flex items-center gap-2 font-bold" disabled={isSending}>
+              <SendHorizontal size={16}/> {isSending ? "Sending Statement..." : "Approve & Dispatch"}
             </button>
           </div>
         </div>
       </div>
     );
   }
+
 
   return (
     <div>
@@ -735,7 +834,7 @@ function QueueView({ invoices, customers, templates, formatCurrency, saveHistory
             {pendingClients.map(client => (
               <tr key={client.customerName}>
                 <td className="font-medium">{client.customerName}</td>
-                <td className="text-muted-foreground">{client.customerData['Email ID']}</td>
+                <td className="text-muted-foreground">{client.customerData['Email ID'] || client.customerData['Mail Id'] || client.customerData.email || ''}</td>
                 <td className="text-center"><span className="badge badge-open">{client.invoices.length}</span></td>
                 <td className="text-right text-destructive font-bold">{formatCurrency(client.total)}</td>
                 <td className="text-center">
@@ -869,10 +968,76 @@ function HistoryView({ sentHistory, saveHistory }) {
 
 
 
-function TemplatesView({ templates, setTemplates, settings, setSettings, resetData }) {
+function TemplatesView({ templates, setTemplates, settings, setSettings, resetData, agentMappings = [], setAgentMappings }) {
   const [showPassword, setShowPassword] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState({ message: '', success: null });
+
+  const [newAgentName, setNewAgentName] = useState('');
+  const [newAgentEmail, setNewAgentEmail] = useState('');
+  const [editingId, setEditingId] = useState(null);
+
+  const handleAddOrUpdateMapping = async (e) => {
+    e.preventDefault();
+    if (!newAgentName.trim() || !newAgentEmail.trim()) return;
+
+    try {
+      if (editingId) {
+        // Update existing
+        const { error } = await supabase
+          .from('agent_mappings')
+          .update({ agent_name: newAgentName.trim(), agent_email: newAgentEmail.trim() })
+          .eq('id', editingId);
+        
+        if (error) throw error;
+        
+        setAgentMappings(agentMappings.map(m => m.id === editingId ? { ...m, agent_name: newAgentName.trim(), agent_email: newAgentEmail.trim() } : m));
+        setEditingId(null);
+      } else {
+        // Add new
+        const { data, error } = await supabase
+          .from('agent_mappings')
+          .insert([{ agent_name: newAgentName.trim(), agent_email: newAgentEmail.trim() }])
+          .select();
+        
+        if (error) throw error;
+        
+        if (data) {
+          setAgentMappings([...agentMappings, data[0]]);
+        }
+      }
+      setNewAgentName('');
+      setNewAgentEmail('');
+    } catch (err) {
+      alert("Error saving mapping: " + err.message);
+    }
+  };
+
+  const handleEditMapping = (m) => {
+    setEditingId(m.id);
+    setNewAgentName(m.agent_name);
+    setNewAgentEmail(m.agent_email);
+  };
+
+  const handleDeleteMapping = async (id) => {
+    if (!confirm("Are you sure you want to delete this agent CC mapping?")) return;
+    try {
+      const { error } = await supabase
+        .from('agent_mappings')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
+      setAgentMappings(agentMappings.filter(m => m.id !== id));
+      if (editingId === id) {
+        setEditingId(null);
+        setNewAgentName('');
+        setNewAgentEmail('');
+      }
+    } catch (err) {
+      alert("Error deleting mapping: " + err.message);
+    }
+  };
 
   const handleTestSmtp = async () => {
     if (!settings.smtpHost || !settings.smtpPort || !settings.smtpUser || !settings.smtpPass) {
@@ -1193,6 +1358,71 @@ function TemplatesView({ templates, setTemplates, settings, setSettings, resetDa
               value={templates.firstNotice}
               onChange={e => setTemplates({...templates, firstNotice: e.target.value})}
             />
+          </div>
+        </div>
+
+        <div className="card p-8 border-border shadow-sm animate-fade-up">
+          <h3 className="text-lg font-bold mb-4 flex items-center gap-2">👥 Agent CC Mappings</h3>
+          <p className="text-xs text-muted-foreground mb-6">Configure custom CC routing based on the follow-up agent specified in the 'me' column.</p>
+          
+          <form onSubmit={handleAddOrUpdateMapping} className="grid grid-cols-5 gap-4 mb-6 items-end p-4 bg-secondary/30 rounded-lg border border-border/50">
+            <div className="col-span-2">
+              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5 block">Agent Name (matches 'me' column)</label>
+              <input 
+                className="input h-9 text-xs" 
+                placeholder="e.g. Baiju" 
+                value={newAgentName} 
+                onChange={e => setNewAgentName(e.target.value)} 
+                required 
+              />
+            </div>
+            <div className="col-span-2">
+              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5 block">Agent Corporate Email</label>
+              <input 
+                type="email"
+                className="input h-9 text-xs" 
+                placeholder="e.g. baiju@pixel-studios.com" 
+                value={newAgentEmail} 
+                onChange={e => setNewAgentEmail(e.target.value)} 
+                required 
+              />
+            </div>
+            <div className="col-span-1">
+              <button type="submit" className="btn btn-primary h-9 text-xs w-full font-bold shadow-glow">
+                {editingId ? "Update" : "Add Mapping"}
+              </button>
+            </div>
+          </form>
+
+          <div className="table-container max-h-[300px] overflow-y-auto">
+            <table>
+              <thead>
+                <tr>
+                  <th>Agent Name</th>
+                  <th>Corporate Email</th>
+                  <th className="text-center w-28">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {agentMappings.map(m => (
+                  <tr key={m.id}>
+                    <td className="font-semibold text-foreground">{m.agent_name}</td>
+                    <td className="text-muted-foreground">{m.agent_email}</td>
+                    <td className="text-center">
+                      <div className="flex gap-3 justify-center">
+                        <button type="button" onClick={() => handleEditMapping(m)} className="text-xs font-bold text-accent hover:underline">Edit</button>
+                        <button type="button" onClick={() => handleDeleteMapping(m.id)} className="text-xs font-bold text-destructive hover:underline">Delete</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {agentMappings.length === 0 && (
+                  <tr>
+                    <td colSpan={3} className="text-center text-muted-foreground p-8 text-xs">No custom agent mappings configured yet.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
 

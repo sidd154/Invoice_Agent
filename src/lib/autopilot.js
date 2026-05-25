@@ -15,7 +15,8 @@ const cleanAmount = (val) => {
 
 const formatCurrency = (amount) => {
   const numeric = typeof amount === 'number' ? amount : cleanAmount(amount);
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(numeric);
+  if (isNaN(numeric)) return amount;
+  return 'Rs. ' + new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(numeric);
 };
 
 function parseEmails(emailString) {
@@ -23,30 +24,79 @@ function parseEmails(emailString) {
   return emailString
     .split(/[;,]/)
     .map(email => email.trim())
-    .filter(email => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email));
+    .filter(email => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+    .filter(email => {
+      const lower = email.toLowerCase();
+      return !lower.includes('example.com') && !lower.includes('recipient@');
+    });
+}
+
+function generateTypeTableHtml(type, invoices) {
+  if (!invoices || invoices.length === 0) return '';
+  
+  let html = `<div style="margin-top: 24px; margin-bottom: 28px;">`;
+  html += `<h3 style="font-size: 15px; font-weight: 700; color: #1e3a8a; margin: 0 0 12px 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; text-transform: uppercase; letter-spacing: 0.025em;">${type}s</h3>`;
+  html += `<table style="width:100%; border-collapse: collapse; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">`;
+  
+  // Table Headers
+  html += `<tr style="background-color: #f8fafc; border-bottom: 1px solid #cbd5e1; text-align: left; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;">
+    <th style="padding: 10px 12px;">Date</th>
+    <th style="padding: 10px 12px;">Invoice No</th>
+    <th style="padding: 10px 12px; text-align: right;">Gross Invoice</th>
+    <th style="padding: 10px 12px; text-align: right;">GST</th>
+    <th style="padding: 10px 12px; text-align: right;">Net Value</th>
+    <th style="padding: 10px 12px;">Category</th>
+  </tr>`;
+  
+  // Table Rows
+  let subtotal = 0;
+  invoices.forEach(inv => {
+    const gross = cleanAmount(inv['Gross Invoice']);
+    const gst = cleanAmount(inv['GST']);
+    const net = cleanAmount(inv['Net Invoice Value'] || inv['Invoice amount']);
+    subtotal += net;
+    
+    html += `<tr style="border-bottom: 1px solid #e2e8f0; color: #0f172a;">
+      <td style="padding: 10px 12px; white-space: nowrap;">${inv['Date'] || inv['Invoice date'] || inv.Date}</td>
+      <td style="padding: 10px 12px; font-weight: 600; color: #2563eb;">${inv['Invoice No'] || inv['Invoice number']}</td>
+      <td style="padding: 10px 12px; text-align: right;">${formatCurrency(gross)}</td>
+      <td style="padding: 10px 12px; text-align: right; color: #475569;">${formatCurrency(gst)}</td>
+      <td style="padding: 10px 12px; text-align: right; color: #dc2626; font-weight: 700;">${formatCurrency(net)}</td>
+      <td style="padding: 10px 12px; color: #475569;">${inv['Category'] || ''}</td>
+    </tr>`;
+  });
+  
+  html += `</table>`;
+  
+  // Specific Subtotal Below Table
+  html += `<div style="text-align: right; margin-top: 10px; font-size: 13px; color: #0f172a; font-weight: 700;">
+    Subtotal ${type} Net: <span style="color: #dc2626; font-size: 14px;">${formatCurrency(subtotal)}</span>
+  </div>`;
+  html += `</div>`;
+  
+  return html;
 }
 
 function compileEmailHtml(customer, customerInvoices, templateStr, lastSentDate = null, companyName = "Enterprise Finance") {
-  const pendingAmount = customerInvoices.reduce((acc, curr) => acc + cleanAmount(curr['Invoice amount']), 0);
+  const pendingAmount = customerInvoices.reduce((acc, curr) => acc + cleanAmount(curr['Net Invoice Value'] || curr['Invoice amount']), 0);
   
-  // 1. Compile the invoice table HTML beautifully
-  let tableHtml = `<table style="width:100%; border-collapse: collapse; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; margin: 24px 0; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">`;
-  tableHtml += `<tr style="background-color: #f8fafc; border-bottom: 1px solid #cbd5e1; text-align: left; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; font-size: 11px; font-weight: 700;">
-    <th style="padding: 12px 16px;">Date</th>
-    <th style="padding: 12px 16px;">Invoice Number</th>
-    <th style="padding: 12px 16px; text-align: right;">Amount</th>
-  </tr>`;
-  
+  // Group by Invoice Type
+  const groupedByType = {};
   customerInvoices.forEach(inv => {
-    tableHtml += `<tr style="border-bottom: 1px solid #e2e8f0; color: #0f172a;">
-      <td style="padding: 12px 16px;">${inv['Invoice date'] || inv.Date}</td>
-      <td style="padding: 12px 16px; font-weight: 600; color: #2563eb;">${inv['Invoice number']}</td>
-      <td style="padding: 12px 16px; text-align: right; color: #dc2626; font-weight: 700;">${formatCurrency(inv['Invoice amount'])}</td>
-    </tr>`;
+    let type = (inv['Invoice Type'] || 'Tax Invoice').trim();
+    if (!groupedByType[type]) {
+      groupedByType[type] = [];
+    }
+    groupedByType[type].push(inv);
   });
-  tableHtml += `</table>`;
-
-  // 2. Escape HTML and format the plain text template to HTML by replacing newlines with <br>
+  
+  // Generate HTML for each type
+  let tablesHtml = '';
+  Object.keys(groupedByType).sort().forEach(type => {
+    tablesHtml += generateTypeTableHtml(type, groupedByType[type]);
+  });
+  
+  // Replace placeholders
   let formattedTemplate = templateStr
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -57,19 +107,19 @@ function compileEmailHtml(customer, customerInvoices, templateStr, lastSentDate 
     .replace(/\{\{last_sent_date\}\}/g, lastSentDate ? `<strong>${new Date(lastSentDate).toLocaleDateString()}</strong>` : '')
     .replace(/\{\{invoice_table\}\}/g, '{{invoice_table_placeholder}}')
     .replace(/\n/g, '<br>')
-    .replace(/\{\{invoice_table_placeholder\}\}/g, tableHtml);
+    .replace(/\{\{invoice_table_placeholder\}\}/g, tablesHtml);
 
-  // 3. Wrap in a stunning, premium HTML email wrapper with dynamic styling
+  // Wrap in a stunning, premium HTML email wrapper with dynamic styling
   const emailWrapper = `
-    <div style="background-color: #f3f4f6; padding: 32px 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-      <div style="max-w: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); border: 1px solid #e5e7eb;">
+    <div style="background-color: #f8fafc; padding: 32px 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+      <div style="max-width: 650px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); border: 1px solid #e2e8f0;">
         <!-- Header -->
-        <div style="background-color: #1e3a8a; padding: 24px; text-align: center; color: #ffffff;">
-          <h2 style="margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.025em;">Statement of Account</h2>
-          <p style="margin: 4px 0 0 0; font-size: 12px; color: #93c5fd; text-transform: uppercase; letter-spacing: 0.05em;">${companyName}</p>
+        <div style="background-color: #1e3a8a; padding: 28px 24px; text-align: center; color: #ffffff;">
+          <h2 style="margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.025em;">Outstanding Balance Reminder</h2>
+          <p style="margin: 6px 0 0 0; font-size: 12px; color: #93c5fd; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;">${companyName}</p>
         </div>
         <!-- Body -->
-        <div style="padding: 32px 24px; color: #374151; font-size: 15px; line-height: 1.6;">
+        <div style="padding: 32px 24px; color: #334155; font-size: 15px; line-height: 1.6;">
           ${formattedTemplate}
         </div>
       </div>
@@ -78,6 +128,7 @@ function compileEmailHtml(customer, customerInvoices, templateStr, lastSentDate 
 
   return emailWrapper;
 }
+
 
 export async function runAutopilotReminders() {
   // Fetch configurations
@@ -109,12 +160,30 @@ export async function runAutopilotReminders() {
   const isScheduledDay = scheduleDays.includes(currentWeekday);
   const isScheduledTime = currentTime === scheduleTime;
 
-  const lastRunDateStr = settings.last_autopilot_run ? new Date(settings.last_autopilot_run).toLocaleString("en-US", { timeZone: "Asia/Kolkata" }).split(',')[0] : null;
   const todayDateStr = kolkataStr.split(',')[0];
-  const alreadyRunToday = lastRunDateStr === todayDateStr;
+  
+  let alreadyRunThisSlot = false;
+  if (settings.last_autopilot_run) {
+    const lastRunKolkata = new Date(settings.last_autopilot_run).toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+    const lastRunDateStr = lastRunKolkata.split(',')[0];
+    
+    // Parse time in 24hr format
+    const timePart = lastRunKolkata.split(', ')[1]; // e.g. "5:30:00 PM"
+    if (timePart) {
+      const parts = timePart.split(' ')[0].split(':');
+      let hr = parseInt(parts[0]);
+      const min = parts[1];
+      const period = timePart.split(' ')[1]; // AM or PM
+      if (period === 'PM' && hr < 12) hr += 12;
+      if (period === 'AM' && hr === 12) hr = 0;
+      const lastRunTime = `${hr.toString().padStart(2, '0')}:${min}`;
+      
+      alreadyRunThisSlot = (lastRunDateStr === todayDateStr) && (lastRunTime === currentTime);
+    }
+  }
 
-  if (!isScheduledDay || !isScheduledTime || alreadyRunToday) {
-    return { success: true, message: 'Not scheduled for this minute or already run today.' };
+  if (!isScheduledDay || !isScheduledTime || alreadyRunThisSlot) {
+    return { success: true, message: 'Not scheduled for this minute or already run this slot.' };
   }
 
   console.log(`[Inbuilt Autopilot] Current scheduled slot matched! Day: ${currentWeekday}, Time: ${currentTime}. Triggering execution...`);
@@ -139,16 +208,26 @@ export async function runAutopilotReminders() {
   }));
   await supabase.from('customers').upsert(formattedCustomers, { onConflict: 'name' });
 
-  // Fetch the templates from the database
-  const [tempRes] = await Promise.all([
-    supabase.from('email_templates').select('*').eq('id', 1)
+  // Fetch templates and agent mappings
+  const [tempRes, mappingsRes] = await Promise.all([
+    supabase.from('email_templates').select('*').eq('id', 1),
+    supabase.from('agent_mappings').select('*')
   ]);
 
   const templates = tempRes.data?.[0];
+  const mappingsList = mappingsRes.data || [];
 
   if (!templates) {
     throw new Error('Templates not initialized');
   }
+
+  // Create quick lookup map for agent name to email
+  const agentEmails = {};
+  mappingsList.forEach(m => {
+    if (m.agent_name && m.agent_email) {
+      agentEmails[m.agent_name.toLowerCase().trim()] = m.agent_email.trim();
+    }
+  });
 
   // Evaluate and process automated open invoice reminders
   const openInvoices = invoices.filter(i => i.status?.toLowerCase() === 'open');
@@ -162,7 +241,7 @@ export async function runAutopilotReminders() {
     groupedInvoices[inv.Customer].push(inv);
   });
 
-  const ccEmails = settings.cc_emails ? parseEmails(settings.cc_emails) : [];
+  const globalCcEmails = settings.cc_emails ? parseEmails(settings.cc_emails) : [];
   const sentEmails = [];
 
   for (const customerName of Object.keys(groupedInvoices)) {
@@ -180,11 +259,20 @@ export async function runAutopilotReminders() {
           settings.company_name
         );
 
+        // Resolve custom agent CC emails based on "me" column
+        const uniqueAgents = [...new Set(
+          customerOpenInvoices
+            .map(inv => (inv.me || inv.raw_data?.me || '').trim())
+            .filter(Boolean)
+        )];
+        const agentCcs = uniqueAgents.map(a => agentEmails[a.toLowerCase()]).filter(Boolean);
+        const mergedCcs = [...new Set([...globalCcEmails, ...agentCcs])];
+
         try {
           // Send email using the unified mail helper (SMTP or Resend)
           await sendEmail({
             to: toEmails,
-            cc: ccEmails.length > 0 ? ccEmails : null,
+            cc: mergedCcs.length > 0 ? mergedCcs : null,
             subject: `Statement of Account - ${customerName}`,
             html: compiledHtml,
             settings: settings
@@ -223,3 +311,4 @@ export async function runAutopilotReminders() {
     emailsSent: sentEmails
   };
 }
+

@@ -32,18 +32,18 @@ export async function fetchSheetsData() {
   }
 
   const sheets = google.sheets({ version: 'v4', auth });
-  const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID || '18jBPpZ2gLvQ1wHakmpZetf4n4TxHJGCDNWe6iqcBHuo';
+  const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID || '1f9xXZY6Z8RCAEAux6QBYeMzYWMpeVZUQhjinpCZD_Rs';
 
-  // Fetch Invoices
+  // Fetch Invoices from Outstanding-detail
   const invoiceResponse = await sheets.spreadsheets.values.get({
     spreadsheetId,
-    range: 'Invoice Details!A:F',
+    range: "'Outstanding-detail'!A:K",
   });
 
-  // Fetch Customers
+  // Fetch Customers from contacts
   const customerResponse = await sheets.spreadsheets.values.get({
     spreadsheetId,
-    range: 'Customer Contacts!A:B',
+    range: "'contacts'!A:B",
   });
 
   const invoicesData = invoiceResponse.data.values;
@@ -53,24 +53,37 @@ export async function fetchSheetsData() {
     throw new Error('Spreadsheet is empty or tabs not found.');
   }
 
-  const invoiceHeaders = invoicesData[0];
+  const invoiceHeaders = invoicesData[0].map(h => (h || '').trim());
   const invoices = invoicesData.slice(1).map(row => {
     let obj = {};
     invoiceHeaders.forEach((header, index) => {
-      obj[header] = row[index] || '';
+      obj[header] = (row[index] || '').trim();
     });
-    if(!obj.status) obj.status = 'open';
+    
+    // Unified backwards-compatible properties mapping
+    obj['Invoice number'] = obj['Invoice No'] || obj['Invoice number'] || '';
+    obj['Customer'] = obj['Particulars'] || obj['Customer'] || '';
+    obj['Invoice amount'] = obj['Net Invoice Value'] || obj['Invoice amount'] || '0';
+    obj['Invoice date'] = obj['Date'] || obj['Invoice date'] || '';
+    obj['status'] = (obj['Notification'] || obj['status'] || 'open').toLowerCase();
+    
     return obj;
   });
 
-  const customerHeaders = customersData[0];
+  const customerHeaders = customersData[0].map(h => (h || '').trim());
   const customers = customersData.slice(1).map(row => {
     let obj = {};
     customerHeaders.forEach((header, index) => {
-      obj[header] = row[index] || '';
+      obj[header] = (row[index] || '').trim();
     });
+    
+    // Unified backwards-compatible customer mappings
+    obj['Customer Name'] = obj['Customer Name'] || '';
+    obj['Email ID'] = obj['Mail Id'] || obj['Email ID'] || '';
+    
     return obj;
   });
 
   return { invoices, customers };
 }
+

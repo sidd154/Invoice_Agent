@@ -24,6 +24,7 @@ export async function sendEmail({ to, cc, subject, html, settings }) {
     const mailOptions = {
       from: `${settings.company_name || 'Billing Department'} <${settings.smtp_from_email || settings.smtp_user}>`,
       to: Array.isArray(to) ? to.join(', ') : to,
+      replyTo: 'accounts@pixel-studios.com',
       subject: subject,
       html: html,
     };
@@ -41,6 +42,7 @@ export async function sendEmail({ to, cc, subject, html, settings }) {
     const emailPayload = {
       from: `${settings?.company_name || 'Billing Department'} <billing@pixelsoft.in>`,
       to: Array.isArray(to) ? to : [to],
+      reply_to: 'accounts@pixel-studios.com',
       subject: subject,
       html: html,
     };

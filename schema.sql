@@ -53,16 +53,32 @@ CREATE TABLE IF NOT EXISTS email_templates (
   follow_up TEXT
 );
 
--- 6. Insert Default Settings
+-- 6. Create Agent Mappings Table
+CREATE TABLE IF NOT EXISTS agent_mappings (
+  id SERIAL PRIMARY KEY,
+  agent_name VARCHAR(255) UNIQUE NOT NULL,
+  agent_email VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 7. Insert Default Settings
 INSERT INTO global_settings (id, follow_up_interval, company_name, auto_pilot)
 VALUES (1, 10, 'PixelSoft Finance', false)
 ON CONFLICT (id) DO NOTHING;
 
--- 7. Insert Default Templates
+-- 8. Insert Default Agent Mappings
+INSERT INTO agent_mappings (agent_name, agent_email)
+VALUES 
+  ('Baiju', 'baiju@pixel-studios.com'),
+  ('Charan', 'charan@pixel-studios.com')
+ON CONFLICT (agent_name) DO NOTHING;
+
+-- 9. Insert Default Templates
 INSERT INTO email_templates (id, first_notice, follow_up)
 VALUES (
   1, 
-  'Dear {{customer_name}},\n\nThis is a friendly reminder regarding pending invoices on your account. Below is a detailed summary of your outstanding payments:\n\n{{invoice_table}}\n\nTotal Pending Amount: {{total_pending}}\n\nPlease arrange for payment at your earliest convenience to keep your account in good standing.\n\nBest regards,\n{{company_name}}', 
-  'Dear {{customer_name}},\n\nThis is an urgent follow-up regarding your outstanding balance. We previously reached out on {{last_sent_date}}.\n\n{{invoice_table}}\n\nTotal Pending Amount: {{total_pending}}\n\nIf you have already processed this payment, please reply to this email with the transaction details.\n\nBest regards,\n{{company_name}}'
+  'Dear {{customer_name}},\n\nPlease find below the summary of your current outstanding invoices:\n\n{{invoice_table}}\n\nTotal Outstanding: {{total_pending}}\n\nFor any clarification or reconciliation, feel free to reach out.\n\nRegards,\nFinance Team\n{{company_name}}', 
+  'Dear {{customer_name}},\n\nPlease find below the summary of your current outstanding invoices:\n\n{{invoice_table}}\n\nTotal Outstanding: {{total_pending}}\n\nFor any clarification or reconciliation, feel free to reach out.\n\nRegards,\nFinance Team\n{{company_name}}'
 )
 ON CONFLICT (id) DO NOTHING;
+

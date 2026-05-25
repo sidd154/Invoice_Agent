@@ -12,7 +12,11 @@ function parseEmails(emailString) {
   return emailString
     .split(/[;,]/)
     .map(email => email.trim())
-    .filter(email => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email));
+    .filter(email => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+    .filter(email => {
+      const lower = email.toLowerCase();
+      return !lower.includes('example.com') && !lower.includes('recipient@');
+    });
 }
 
 export async function POST(req) {
