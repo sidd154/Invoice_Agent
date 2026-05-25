@@ -1029,7 +1029,7 @@ function TemplatesView({ templates, setTemplates, settings, setSettings, resetDa
                                 // Ensure at least one day is selected
                                 setSettings({...settings, scheduleDays: newDays.length > 0 ? newDays : [day]});
                               }}
-                              className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-all ${isSelected ? 'bg-primary border-primary text-white shadow-glow' : 'bg-transparent border-border text-muted-foreground hover:text-foreground'}`}
+                              className={`weekday-chip ${isSelected ? 'active' : ''}`}
                             >
                               {day}
                             </button>
