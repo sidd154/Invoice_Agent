@@ -467,3 +467,29 @@ tr:hover td {
   border-color: var(--primary);
   box-shadow: 0 0 10px rgba(255, 255, 255, 0.15);
 }
+
+/* Password visibility button alignment */
+.pw-toggle-btn {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  z-index: 10;
+  transition: color 0.15s ease;
+}
+
+.pw-toggle-btn:hover {
+  color: var(--foreground);
+}
+
+.gap-10 {
+  gap: 2.5rem;
+}

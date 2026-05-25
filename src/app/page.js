@@ -843,9 +843,9 @@ function TemplatesView({ templates, setTemplates, settings, setSettings, resetDa
         </div>
       </div>
 
-      <div className="max-w-4xl flex flex-col gap-8">
+      <div className="max-w-4xl flex flex-col gap-10">
         
-        <div className="card p-6 border-border shadow-sm">
+        <div className="card p-8 border-border shadow-sm">
           <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><Settings size={18}/> Workspace Configuration</h3>
           <div className="grid grid-cols-2 gap-6">
             <div className="col-span-2">
@@ -936,7 +936,7 @@ function TemplatesView({ templates, setTemplates, settings, setSettings, resetDa
                       <button 
                         type="button" 
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none"
+                        className="pw-toggle-btn"
                       >
                         <Eye size={16} />
                       </button>
@@ -1037,15 +1037,73 @@ function TemplatesView({ templates, setTemplates, settings, setSettings, resetDa
                         })}
                       </div>
                     </div>
-                    <div className="col-span-2">
-                      <label className="text-[11px] font-semibold text-muted-foreground mb-2 block uppercase tracking-wider">Send Time (IST)</label>
-                      <input 
-                        type="time"
-                        className="input h-10 text-sm" 
-                        value={settings.scheduleTime || '11:00'} 
-                        onChange={e => setSettings({...settings, scheduleTime: e.target.value})} 
-                      />
-                    </div>
+                    {(() => {
+                      const [rawHour, rawMinute] = (settings.scheduleTime || '11:00').split(':');
+                      const hour24 = parseInt(rawHour) || 0;
+                      const periodVal = hour24 >= 12 ? 'PM' : 'AM';
+                      const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
+                      const hour12Val = hour12.toString().padStart(2, '0');
+                      const minuteVal = (rawMinute || '00');
+                      
+                      return (
+                        <div className="col-span-2">
+                          <label className="text-[11px] font-semibold text-muted-foreground mb-2 block uppercase tracking-wider">Send Time (IST)</label>
+                          <div className="flex gap-2 items-center">
+                            <select 
+                              className="input h-10 text-center font-semibold"
+                              style={{ width: '70px', padding: '0 8px' }}
+                              value={hour12Val}
+                              onChange={e => {
+                                const newHour12 = parseInt(e.target.value);
+                                let newHour24 = newHour12;
+                                if (periodVal === 'PM' && newHour12 < 12) newHour24 += 12;
+                                if (periodVal === 'AM' && newHour12 === 12) newHour24 = 0;
+                                const timeStr = `${newHour24.toString().padStart(2, '0')}:${minuteVal}`;
+                                setSettings({...settings, scheduleTime: timeStr});
+                              }}
+                            >
+                              {["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"].map(h => (
+                                <option key={h} value={h}>{h}</option>
+                              ))}
+                            </select>
+                            
+                            <span className="font-bold text-muted-foreground">:</span>
+
+                            <select 
+                              className="input h-10 text-center font-semibold"
+                              style={{ width: '70px', padding: '0 8px' }}
+                              value={minuteVal}
+                              onChange={e => {
+                                const timeStr = `${hour24.toString().padStart(2, '0')}:${e.target.value}`;
+                                setSettings({...settings, scheduleTime: timeStr});
+                              }}
+                            >
+                              {["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"].map(m => (
+                                <option key={m} value={m}>{m}</option>
+                              ))}
+                            </select>
+
+                            <select 
+                              className="input h-10 text-center font-semibold"
+                              style={{ width: '75px', padding: '0 8px' }}
+                              value={periodVal}
+                              onChange={e => {
+                                const newPeriod = e.target.value;
+                                const h12 = parseInt(hour12Val);
+                                let newHour24 = h12;
+                                if (newPeriod === 'PM' && h12 < 12) newHour24 += 12;
+                                if (newPeriod === 'AM' && h12 === 12) newHour24 = 0;
+                                const timeStr = `${newHour24.toString().padStart(2, '0')}:${minuteVal}`;
+                                setSettings({...settings, scheduleTime: timeStr});
+                              }}
+                            >
+                              <option value="AM">AM</option>
+                              <option value="PM">PM</option>
+                            </select>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               )}
@@ -1053,7 +1111,7 @@ function TemplatesView({ templates, setTemplates, settings, setSettings, resetDa
           </div>
         </div>
 
-        <div className="card p-6 border-border shadow-sm">
+        <div className="card p-8 border-border shadow-sm">
           <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><FileText size={18}/> Email Templates</h3>
           <div>
             <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-1">Standard Notice Template</h3>
@@ -1066,7 +1124,7 @@ function TemplatesView({ templates, setTemplates, settings, setSettings, resetDa
           </div>
         </div>
 
-        <div className="card p-6 border-destructive/20 bg-destructive/5 mt-4">
+        <div className="card p-8 border-destructive/20 bg-destructive/5 mt-4">
           <h3 className="text-lg font-bold text-destructive mb-2">Danger Zone</h3>
           <p className="text-sm text-muted-foreground mb-4">Actions here are permanent and cannot be undone.</p>
           <button onClick={resetData} className="btn bg-destructive hover:bg-destructive-hover text-destructive-foreground">
