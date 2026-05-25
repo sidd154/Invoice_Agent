@@ -482,7 +482,7 @@ function InvoicesView({ invoices, formatCurrency }) {
         </div>
         <div className="flex items-center gap-3">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={14}/>
+            <Search className="search-icon" size={14}/>
             <input className="input pl-8 w-64 text-xs h-9" placeholder="Search customer or ID..." value={filter} onChange={e => setFilter(e.target.value)} />
           </div>
         </div>
@@ -788,7 +788,7 @@ function HistoryView({ sentHistory, saveHistory }) {
         <div style={{ flex: '2', minWidth: '200px' }}>
           <label className="text-[11px] font-semibold text-muted-foreground mb-1.5 block uppercase tracking-wider">Search Recipient or Invoice</label>
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={14}/>
+            <Search className="search-icon" size={14}/>
             <input 
               className="input pl-8 text-xs h-9" 
               placeholder="Search client, email, or invoice..." 
