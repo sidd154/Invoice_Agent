@@ -37,21 +37,24 @@ function generateTypeTableHtml(type, invoices) {
   let html = `<div style="margin-top: 24px; margin-bottom: 28px;">`;
   html += `<h3 style="font-size: 15px; font-weight: 700; color: #1e3a8a; margin: 0 0 12px 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; text-transform: uppercase; letter-spacing: 0.025em;">${type}s</h3>`;
   
-  // Responsive horizontal scroll wrapper for mobile viewports
-  html += `<div style="width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; margin-bottom: 12px; border: 1px solid #e2e8f0; border-radius: 8px;">`;
-  html += `<table cellpadding="0" cellspacing="0" border="0" style="width:100%; min-width: 580px; border-collapse: collapse; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px;">`;
+  // Clean fluid table with responsive classes
+  html += `<table class="responsive-table" cellpadding="0" cellspacing="0" border="0" style="width:100%; border-collapse: collapse; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">`;
   
-  // Table Headers with explicit width percentages
-  html += `<tr style="background-color: #f8fafc; border-bottom: 1px solid #cbd5e1; text-align: left; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;">
-    <th width="16%" style="padding: 10px 8px; border-bottom: 1px solid #cbd5e1;">Date</th>
-    <th width="18%" style="padding: 10px 8px; border-bottom: 1px solid #cbd5e1;">Invoice No</th>
-    <th width="17%" style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #cbd5e1;">Gross Invoice</th>
-    <th width="14%" style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #cbd5e1;">GST</th>
-    <th width="18%" style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #cbd5e1;">Net Value</th>
-    <th width="17%" style="padding: 10px 8px; border-bottom: 1px solid #cbd5e1;">Category</th>
-  </tr>`;
+  // Table Headers with explicit width percentages (hidden on mobile)
+  html += `<thead class="desktop-header">
+    <tr style="background-color: #f8fafc; border-bottom: 1px solid #cbd5e1; text-align: left; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;">
+      <th width="16%" style="padding: 10px 12px; border-bottom: 1px solid #cbd5e1;">Date</th>
+      <th width="18%" style="padding: 10px 12px; border-bottom: 1px solid #cbd5e1;">Invoice No</th>
+      <th width="17%" style="padding: 10px 12px; text-align: right; border-bottom: 1px solid #cbd5e1;">Gross Invoice</th>
+      <th width="14%" style="padding: 10px 12px; text-align: right; border-bottom: 1px solid #cbd5e1;">GST</th>
+      <th width="18%" style="padding: 10px 12px; text-align: right; border-bottom: 1px solid #cbd5e1;">Net Value</th>
+      <th width="17%" style="padding: 10px 12px; border-bottom: 1px solid #cbd5e1;">Category</th>
+    </tr>
+  </thead>`;
   
-  // Table Rows
+  html += `<tbody>`;
+  
+  // Table Rows (become card blocks on mobile)
   let subtotal = 0;
   invoices.forEach(inv => {
     const gross = cleanAmount(inv['Gross Invoice']);
@@ -59,21 +62,21 @@ function generateTypeTableHtml(type, invoices) {
     const net = cleanAmount(inv['Net Invoice Value'] || inv['Invoice amount']);
     subtotal += net;
     
-    html += `<tr style="border-bottom: 1px solid #e2e8f0; color: #0f172a;">
-      <td width="16%" style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; word-break: break-word;">${inv['Date'] || inv['Invoice date'] || inv.Date}</td>
-      <td width="18%" style="padding: 10px 8px; font-weight: 600; color: #2563eb; border-bottom: 1px solid #e2e8f0; word-break: break-all;">${inv['Invoice No'] || inv['Invoice number']}</td>
-      <td width="17%" style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">${formatCurrency(gross)}</td>
-      <td width="14%" style="padding: 10px 8px; text-align: right; color: #475569; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">${formatCurrency(gst)}</td>
-      <td width="18%" style="padding: 10px 8px; text-align: right; color: #dc2626; font-weight: 700; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">${formatCurrency(net)}</td>
-      <td width="17%" style="padding: 10px 8px; color: #475569; border-bottom: 1px solid #e2e8f0; word-break: break-word;">${inv['Category'] || ''}</td>
+    html += `<tr class="responsive-tr" style="border-bottom: 1px solid #e2e8f0; color: #0f172a;">
+      <td class="responsive-td" data-label="Date" width="16%" style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; word-break: break-word;">${inv['Date'] || inv['Invoice date'] || inv.Date}</td>
+      <td class="responsive-td" data-label="Invoice No" width="18%" style="padding: 10px 12px; font-weight: 600; color: #2563eb; border-bottom: 1px solid #e2e8f0; word-break: break-all;">${inv['Invoice No'] || inv['Invoice number']}</td>
+      <td class="responsive-td" data-label="Gross Invoice" width="17%" style="padding: 10px 12px; text-align: right; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">${formatCurrency(gross)}</td>
+      <td class="responsive-td" data-label="GST" width="14%" style="padding: 10px 12px; text-align: right; color: #475569; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">${formatCurrency(gst)}</td>
+      <td class="responsive-td responsive-td-net" data-label="Net Value" width="18%" style="padding: 10px 12px; text-align: right; color: #dc2626; font-weight: 700; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">${formatCurrency(net)}</td>
+      <td class="responsive-td" data-label="Category" width="17%" style="padding: 10px 12px; color: #475569; border-bottom: 1px solid #e2e8f0; word-break: break-word;">${inv['Category'] || ''}</td>
     </tr>`;
   });
   
+  html += `</tbody>`;
   html += `</table>`;
-  html += `</div>`; // Close scroll wrapper
   
   // Specific Subtotal Below Table
-  html += `<div style="text-align: right; margin-top: 10px; font-size: 13px; color: #0f172a; font-weight: 700;">
+  html += `<div class="subtotal-container" style="text-align: right; margin-top: 10px; font-size: 13px; color: #0f172a; font-weight: 700;">
     Subtotal ${type} Net: <span style="color: #dc2626; font-size: 14px;">${formatCurrency(subtotal)}</span>
   </div>`;
   html += `</div>`;
@@ -115,29 +118,88 @@ function compileEmailHtml(customer, customerInvoices, templateStr, lastSentDate 
 
   // Wrap in a stunning, premium HTML email wrapper with dynamic styling and Outlook MSO support
   const emailWrapper = `
-    <div style="background-color: #f8fafc; padding: 32px 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-      <!--[if (gte mso 9)|(IE)]>
-      <table width="600" align="center" style="border-spacing:0;font-family:sans-serif;color:#333333;" >
-      <tr>
-      <td style="padding:0;" >
-      <![endif]-->
-      <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); border: 1px solid #e2e8f0;">
-        <!-- Header -->
-        <div style="background-color: #1e3a8a; padding: 28px 24px; text-align: center; color: #ffffff;">
-          <h2 style="margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.025em;">Outstanding Balance Reminder</h2>
-          <p style="margin: 6px 0 0 0; font-size: 12px; color: #93c5fd; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;">${companyName}</p>
+    <html>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style type="text/css">
+          @media only screen and (max-width: 599px) {
+            .responsive-table {
+              width: 100% !important;
+              min-width: 100% !important;
+              border: none !important;
+            }
+            .responsive-table thead, .desktop-header {
+              display: none !important;
+            }
+            .responsive-table tbody, .responsive-table tr, .responsive-table td {
+              display: block !important;
+              width: 100% !important;
+              box-sizing: border-box !important;
+            }
+            .responsive-tr {
+              margin-bottom: 16px !important;
+              padding: 12px 14px !important;
+              border: 1px solid #e2e8f0 !important;
+              border-radius: 8px !important;
+              background-color: #f8fafc !important;
+              box-shadow: 0 1px 3px rgba(0,0,0,0.01) !important;
+            }
+            .responsive-td {
+              text-align: left !important;
+              padding: 6px 0 !important;
+              border-bottom: 1px solid #f1f5f9 !important;
+              font-size: 13px !important;
+              line-height: 1.5 !important;
+            }
+            .responsive-td:last-child {
+              border-bottom: none !important;
+            }
+            .responsive-td::before {
+              content: attr(data-label) ": ";
+              font-weight: 700 !important;
+              color: #475569 !important;
+              display: inline-block !important;
+              width: 120px !important;
+            }
+            .responsive-td-net {
+              color: #dc2626 !important;
+              font-weight: 700 !important;
+            }
+            .subtotal-container {
+              text-align: left !important;
+              margin-top: 12px !important;
+              padding-top: 8px !important;
+              border-top: 2px solid #e2e8f0 !important;
+            }
+          }
+        </style>
+      </head>
+      <body style="margin: 0; padding: 0;">
+        <div style="background-color: #f8fafc; padding: 32px 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+          <!--[if (gte mso 9)|(IE)]>
+          <table width="600" align="center" style="border-spacing:0;font-family:sans-serif;color:#333333;" >
+          <tr>
+          <td style="padding:0;" >
+          <![endif]-->
+          <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); border: 1px solid #e2e8f0;">
+            <!-- Header -->
+            <div style="background-color: #1e3a8a; padding: 28px 24px; text-align: center; color: #ffffff;">
+              <h2 style="margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.025em;">Outstanding Balance Reminder</h2>
+              <p style="margin: 6px 0 0 0; font-size: 12px; color: #93c5fd; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;">${companyName}</p>
+            </div>
+            <!-- Body -->
+            <div style="padding: 32px 24px; color: #334155; font-size: 15px; line-height: 1.6;">
+              ${formattedTemplate}
+            </div>
+          </div>
+          <!--[if (gte mso 9)|(IE)]>
+          </td>
+          </tr>
+          </table>
+          <![endif]-->
         </div>
-        <!-- Body -->
-        <div style="padding: 32px 24px; color: #334155; font-size: 15px; line-height: 1.6;">
-          ${formattedTemplate}
-        </div>
-      </div>
-      <!--[if (gte mso 9)|(IE)]>
-      </td>
-      </tr>
-      </table>
-      <![endif]-->
-    </div>
+      </body>
+    </html>
   `;
 
   return emailWrapper;
