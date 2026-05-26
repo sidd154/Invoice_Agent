@@ -764,6 +764,7 @@ function QueueView({ invoices, customers, templates, formatCurrency, saveHistory
   const [compiledHtml, setCompiledHtml] = useState("");
   const [customCc, setCustomCc] = useState("");
   const [customTo, setCustomTo] = useState("");
+  const [customSubject, setCustomSubject] = useState("");
 
   const openInvoices = invoices.filter(i => i.status?.toLowerCase() === 'open');
   const grouped = {};
@@ -805,6 +806,10 @@ function QueueView({ invoices, customers, templates, formatCurrency, saveHistory
     setCompiledHtml(compileEmailHtml(client.customerData, client.invoices, templates.firstNotice, formatCurrency, null, settings.companyName));
     setCustomCc(resolvedCcLine);
     
+    const dateOptions = { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Kolkata' };
+    const formattedDate = new Date().toLocaleString('en-IN', dateOptions).replace(/,/g, '');
+    setCustomSubject(`Statement of Account - ${client.customerName} (As of ${formattedDate})`);
+    
     const rawEmail = client.customerData['Email ID'] || client.customerData['Mail Id'] || client.customerData.email || "";
     const cleanEmail = rawEmail.split(/[;,]/).map(e => e.trim()).filter(Boolean).filter(e => {
       const lower = e.toLowerCase();
@@ -823,7 +828,7 @@ function QueueView({ invoices, customers, templates, formatCurrency, saveHistory
       const payload = {
         to: customTo,
         cc: customCc,
-        subject: `Statement of Account - ${selectedClient.customerName}`,
+        subject: customSubject,
         htmlContent: compiledHtml,
         companyName: settings.companyName
       };
@@ -882,9 +887,15 @@ function QueueView({ invoices, customers, templates, formatCurrency, saveHistory
                 onChange={e => setCustomCc(e.target.value)} 
               />
             </div>
-            <div className="composer-field flex items-center py-2.5 border-b border-border border-none">
+            <div className="composer-field flex items-center py-2.5 border-b border-border">
               <span className="composer-label w-16 text-xs font-bold text-muted-foreground uppercase tracking-wider">Subject:</span>
-              <span className="text-sm font-medium text-foreground">Statement of Account - {selectedClient.customerName}</span>
+              <input 
+                type="text"
+                className="bg-transparent border-none text-sm text-foreground focus:outline-none w-full p-0 font-medium" 
+                placeholder="Subject Line" 
+                value={customSubject} 
+                onChange={e => setCustomSubject(e.target.value)} 
+              />
             </div>
             <div className="composer-preview border border-border rounded-lg overflow-y-auto max-h-[450px]" dangerouslySetInnerHTML={{__html: compiledHtml}}></div>
           </div>

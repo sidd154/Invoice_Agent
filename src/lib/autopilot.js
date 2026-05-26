@@ -358,12 +358,16 @@ export async function runAutopilotReminders() {
         const agentCcs = uniqueAgents.map(a => agentEmails[a.toLowerCase()]).filter(Boolean);
         const mergedCcs = [...new Set([...globalCcEmails, ...agentCcs])];
 
+        const dateOptions = { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Kolkata' };
+        const formattedDate = new Date().toLocaleString('en-IN', dateOptions).replace(/,/g, '');
+        const dynamicSubject = `Statement of Account - ${customerName} (As of ${formattedDate})`;
+
         try {
           // Send email using the unified mail helper (SMTP or Resend)
           await sendEmail({
             to: toEmails,
             cc: mergedCcs.length > 0 ? mergedCcs : null,
-            subject: `Statement of Account - ${customerName}`,
+            subject: dynamicSubject,
             html: compiledHtml,
             settings: settings
           });
