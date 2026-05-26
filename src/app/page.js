@@ -575,21 +575,24 @@ function generateTypeTableHtml(type, invoices, formatCurrency) {
   let html = `<div style="margin-top: 24px; margin-bottom: 28px;">`;
   html += `<h3 style="font-size: 15px; font-weight: 700; color: #1e3a8a; margin: 0 0 12px 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; text-transform: uppercase; letter-spacing: 0.025em;">${type}s</h3>`;
   
-  // Responsive horizontal scroll wrapper for mobile viewports
-  html += `<div style="width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; margin-bottom: 12px; border: 1px solid #e2e8f0; border-radius: 8px;">`;
-  html += `<table cellpadding="0" cellspacing="0" border="0" style="width:100%; min-width: 580px; border-collapse: collapse; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px;">`;
+  // Clean fluid table with responsive classes, table-layout: fixed, and border collapse
+  html += `<table class="responsive-table" cellpadding="0" cellspacing="0" border="0" style="width:100%; table-layout: fixed; border-collapse: collapse; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; margin-bottom: 12px;">`;
   
-  // Table Headers with explicit width percentages
-  html += `<tr style="background-color: #f8fafc; border-bottom: 1px solid #cbd5e1; text-align: left; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;">
-    <th width="16%" style="padding: 10px 8px; border-bottom: 1px solid #cbd5e1;">Date</th>
-    <th width="18%" style="padding: 10px 8px; border-bottom: 1px solid #cbd5e1;">Invoice No</th>
-    <th width="17%" style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #cbd5e1;">Gross Invoice</th>
-    <th width="14%" style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #cbd5e1;">GST</th>
-    <th width="18%" style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #cbd5e1;">Net Value</th>
-    <th width="17%" style="padding: 10px 8px; border-bottom: 1px solid #cbd5e1;">Category</th>
-  </tr>`;
+  // Table Headers with explicit width percentages (optimized for 6 columns)
+  html += `<thead class="desktop-header">
+    <tr style="background-color: #f8fafc; border-bottom: 1px solid #cbd5e1; text-align: left; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;">
+      <th width="14%" style="padding: 10px 8px; border-bottom: 1px solid #cbd5e1;">Date</th>
+      <th width="18%" style="padding: 10px 8px; border-bottom: 1px solid #cbd5e1;">Invoice No</th>
+      <th width="17%" style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #cbd5e1;">Gross Invoice</th>
+      <th width="14%" style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #cbd5e1;">GST</th>
+      <th width="20%" style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #cbd5e1;">Net Value</th>
+      <th width="17%" style="padding: 10px 8px; border-bottom: 1px solid #cbd5e1;">Category</th>
+    </tr>
+  </thead>`;
   
-  // Table Rows
+  html += `<tbody>`;
+  
+  // Table Rows (preserved as a standard flat horizontal table on both desktop and mobile views)
   let subtotal = 0;
   invoices.forEach(inv => {
     const gross = cleanAmount(inv['Gross Invoice']);
@@ -597,21 +600,21 @@ function generateTypeTableHtml(type, invoices, formatCurrency) {
     const net = cleanAmount(inv['Net Invoice Value'] || inv['Invoice amount']);
     subtotal += net;
     
-    html += `<tr style="border-bottom: 1px solid #e2e8f0; color: #0f172a;">
-      <td width="16%" style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; word-break: break-word;">${inv['Date'] || inv['Invoice date'] || inv.Date}</td>
-      <td width="18%" style="padding: 10px 8px; font-weight: 600; color: #2563eb; border-bottom: 1px solid #e2e8f0; word-break: break-all;">${inv['Invoice No'] || inv['Invoice number']}</td>
-      <td width="17%" style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">${formatCurrency(gross)}</td>
-      <td width="14%" style="padding: 10px 8px; text-align: right; color: #475569; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">${formatCurrency(gst)}</td>
-      <td width="18%" style="padding: 10px 8px; text-align: right; color: #dc2626; font-weight: 700; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">${formatCurrency(net)}</td>
-      <td width="17%" style="padding: 10px 8px; color: #475569; border-bottom: 1px solid #e2e8f0; word-break: break-word;">${inv['Category'] || ''}</td>
+    html += `<tr class="responsive-tr" style="border-bottom: 1px solid #e2e8f0; color: #0f172a;">
+      <td class="responsive-td" width="14%" style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; word-break: break-word;">${inv['Date'] || inv['Invoice date'] || inv.Date}</td>
+      <td class="responsive-td" width="18%" style="padding: 10px 8px; font-weight: 600; color: #2563eb; border-bottom: 1px solid #e2e8f0; word-break: break-all;">${inv['Invoice No'] || inv['Invoice number']}</td>
+      <td class="responsive-td" width="17%" style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">${formatCurrency(gross)}</td>
+      <td class="responsive-td" width="14%" style="padding: 10px 8px; text-align: right; color: #475569; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">${formatCurrency(gst)}</td>
+      <td class="responsive-td responsive-td-net" width="20%" style="padding: 10px 8px; text-align: right; color: #dc2626; font-weight: 700; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">${formatCurrency(net)}</td>
+      <td class="responsive-td" width="17%" style="padding: 10px 8px; color: #475569; border-bottom: 1px solid #e2e8f0; word-break: break-word;">${inv['Category'] || ''}</td>
     </tr>`;
   });
   
+  html += `<tbody>`;
   html += `</table>`;
-  html += `</div>`; // Close scroll wrapper
   
   // Specific Subtotal Below Table
-  html += `<div style="text-align: right; margin-top: 10px; font-size: 13px; color: #0f172a; font-weight: 700;">
+  html += `<div class="subtotal-container" style="text-align: right; margin-top: 10px; font-size: 13px; color: #0f172a; font-weight: 700;">
     Subtotal ${type} Net: <span style="color: #dc2626; font-size: 14px;">${formatCurrency(subtotal)}</span>
   </div>`;
   html += `</div>`;
@@ -654,6 +657,32 @@ function compileEmailHtml(customer, customerInvoices, templateStr, formatCurrenc
   // Wrap in a stunning, premium HTML email wrapper with dynamic styling and Outlook MSO support
   const emailWrapper = `
     <div style="background-color: #f8fafc; padding: 32px 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+      <style type="text/css">
+        @media only screen and (max-width: 599px) {
+          .responsive-table {
+            width: 100% !important;
+            min-width: 100% !important;
+            table-layout: fixed !important;
+            border-collapse: collapse !important;
+          }
+          .responsive-table th {
+            font-size: 9px !important;
+            padding: 6px 2px !important;
+          }
+          .responsive-table td {
+            font-size: 9px !important;
+            padding: 6px 2px !important;
+            word-break: break-all !important;
+          }
+          .subtotal-container {
+            font-size: 11px !important;
+            margin-top: 8px !important;
+          }
+          .subtotal-container span {
+            font-size: 12px !important;
+          }
+        }
+      </style>
       <!--[if (gte mso 9)|(IE)]>
       <table width="600" align="center" style="border-spacing:0;font-family:sans-serif;color:#333333;" >
       <tr>
