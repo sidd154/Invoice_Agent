@@ -702,37 +702,42 @@ function compileEmailHtml(customer, customerInvoices, templateStr, formatCurrenc
 
   // Wrap in a stunning, premium HTML email wrapper with dynamic styling and Outlook MSO support
   const emailWrapper = `
-    <div style="background-color: #f8fafc; padding: 32px 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-      <style type="text/css">
-        .mobile-only-cards {
-          display: none !important;
-          mso-hide: all !important; /* Outlook Desktop hide */
-          overflow: hidden !important;
-          width: 0 !important;
-          max-height: 0 !important;
-        }
-        @media only screen and (max-width: 599px) {
-          .desktop-only-table {
+    <html>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style type="text/css">
+          .mobile-only-cards {
             display: none !important;
-            mso-hide: all !important;
+            mso-hide: all !important; /* Outlook Desktop hide */
             overflow: hidden !important;
             width: 0 !important;
             max-height: 0 !important;
           }
-          .mobile-only-cards {
-            display: block !important;
-            width: 100% !important;
-            max-height: none !important;
-            overflow: visible !important;
+          @media only screen and (max-width: 599px) {
+            .desktop-only-table {
+              display: none !important;
+              mso-hide: all !important;
+              overflow: hidden !important;
+              width: 0 !important;
+              max-height: 0 !important;
+            }
+            .mobile-only-cards {
+              display: block !important;
+              width: 100% !important;
+              max-height: none !important;
+              overflow: visible !important;
+            }
           }
-        }
-      </style>
-      <!--[if (gte mso 9)|(IE)]>
-      <table width="600" align="center" style="border-spacing:0;font-family:sans-serif;color:#333333;" >
-      <tr>
-      <td style="padding:0;" >
-      <![endif]-->
-      <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); border: 1px solid #e2e8f0;">
+        </style>
+      </head>
+      <body style="margin: 0; padding: 0;">
+        <div style="background-color: #f8fafc; padding: 32px 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+          <!--[if (gte mso 9)|(IE)]>
+          <table width="600" align="center" style="border-spacing:0;font-family:sans-serif;color:#333333;" >
+          <tr>
+          <td style="padding:0;" >
+          <![endif]-->
+          <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); border: 1px solid #e2e8f0;">
         <!-- Header -->
         <div style="background-color: #1e3a8a; padding: 28px 24px; text-align: center; color: #ffffff;">
           <h2 style="margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.025em;">Outstanding Balance Reminder</h2>
@@ -743,12 +748,14 @@ function compileEmailHtml(customer, customerInvoices, templateStr, formatCurrenc
           ${formattedTemplate}
         </div>
       </div>
-      <!--[if (gte mso 9)|(IE)]>
-      </td>
-      </tr>
-      </table>
-      <![endif]-->
-    </div>
+          <!--[if (gte mso 9)|(IE)]>
+          </td>
+          </tr>
+          </table>
+          <![endif]-->
+        </div>
+      </body>
+    </html>
   `;
 
   return emailWrapper;
