@@ -737,6 +737,11 @@ function compileEmailHtml(customer, customerInvoices, templateStr, formatCurrenc
         <!-- Body -->
         <div style="padding: 32px 24px; color: #334155; font-size: 15px; line-height: 1.6;">
           ${formattedTemplate}
+          
+          <!-- Footer unique block to prevent Gmail quoting/thread collapse -->
+          <div style="margin-top: 32px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8; text-align: center; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+            Statement Ref: STAT-${Math.random().toString(36).substr(2, 9).toUpperCase()} &nbsp;•&nbsp; Generated: ${new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"})}
+          </div>
         </div>
       </div>
           <!--[if (gte mso 9)|(IE)]>
