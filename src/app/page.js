@@ -574,16 +574,19 @@ function generateTypeTableHtml(type, invoices, formatCurrency) {
   
   let html = `<div style="margin-top: 24px; margin-bottom: 28px;">`;
   html += `<h3 style="font-size: 15px; font-weight: 700; color: #1e3a8a; margin: 0 0 12px 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; text-transform: uppercase; letter-spacing: 0.025em;">${type}s</h3>`;
-  html += `<table style="width:100%; border-collapse: collapse; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">`;
   
-  // Table Headers
+  // Responsive horizontal scroll wrapper for mobile viewports
+  html += `<div style="width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; margin-bottom: 12px; border: 1px solid #e2e8f0; border-radius: 8px;">`;
+  html += `<table cellpadding="0" cellspacing="0" border="0" style="width:100%; min-width: 580px; border-collapse: collapse; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px;">`;
+  
+  // Table Headers with explicit width percentages
   html += `<tr style="background-color: #f8fafc; border-bottom: 1px solid #cbd5e1; text-align: left; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;">
-    <th style="padding: 10px 12px;">Date</th>
-    <th style="padding: 10px 12px;">Invoice No</th>
-    <th style="padding: 10px 12px; text-align: right;">Gross Invoice</th>
-    <th style="padding: 10px 12px; text-align: right;">GST</th>
-    <th style="padding: 10px 12px; text-align: right;">Net Value</th>
-    <th style="padding: 10px 12px;">Category</th>
+    <th width="16%" style="padding: 10px 8px; border-bottom: 1px solid #cbd5e1;">Date</th>
+    <th width="18%" style="padding: 10px 8px; border-bottom: 1px solid #cbd5e1;">Invoice No</th>
+    <th width="17%" style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #cbd5e1;">Gross Invoice</th>
+    <th width="14%" style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #cbd5e1;">GST</th>
+    <th width="18%" style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #cbd5e1;">Net Value</th>
+    <th width="17%" style="padding: 10px 8px; border-bottom: 1px solid #cbd5e1;">Category</th>
   </tr>`;
   
   // Table Rows
@@ -595,16 +598,17 @@ function generateTypeTableHtml(type, invoices, formatCurrency) {
     subtotal += net;
     
     html += `<tr style="border-bottom: 1px solid #e2e8f0; color: #0f172a;">
-      <td style="padding: 10px 12px; white-space: nowrap;">${inv['Date'] || inv['Invoice date'] || inv.Date}</td>
-      <td style="padding: 10px 12px; font-weight: 600; color: #2563eb;">${inv['Invoice No'] || inv['Invoice number']}</td>
-      <td style="padding: 10px 12px; text-align: right;">${formatCurrency(gross)}</td>
-      <td style="padding: 10px 12px; text-align: right; color: #475569;">${formatCurrency(gst)}</td>
-      <td style="padding: 10px 12px; text-align: right; color: #dc2626; font-weight: 700;">${formatCurrency(net)}</td>
-      <td style="padding: 10px 12px; color: #475569;">${inv['Category'] || ''}</td>
+      <td width="16%" style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; word-break: break-word;">${inv['Date'] || inv['Invoice date'] || inv.Date}</td>
+      <td width="18%" style="padding: 10px 8px; font-weight: 600; color: #2563eb; border-bottom: 1px solid #e2e8f0; word-break: break-all;">${inv['Invoice No'] || inv['Invoice number']}</td>
+      <td width="17%" style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">${formatCurrency(gross)}</td>
+      <td width="14%" style="padding: 10px 8px; text-align: right; color: #475569; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">${formatCurrency(gst)}</td>
+      <td width="18%" style="padding: 10px 8px; text-align: right; color: #dc2626; font-weight: 700; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">${formatCurrency(net)}</td>
+      <td width="17%" style="padding: 10px 8px; color: #475569; border-bottom: 1px solid #e2e8f0; word-break: break-word;">${inv['Category'] || ''}</td>
     </tr>`;
   });
   
   html += `</table>`;
+  html += `</div>`; // Close scroll wrapper
   
   // Specific Subtotal Below Table
   html += `<div style="text-align: right; margin-top: 10px; font-size: 13px; color: #0f172a; font-weight: 700;">
@@ -647,10 +651,15 @@ function compileEmailHtml(customer, customerInvoices, templateStr, formatCurrenc
     .replace(/\n/g, '<br>')
     .replace(/\{\{invoice_table_placeholder\}\}/g, tablesHtml);
 
-  // Wrap in a stunning, premium HTML email wrapper with dynamic styling
+  // Wrap in a stunning, premium HTML email wrapper with dynamic styling and Outlook MSO support
   const emailWrapper = `
     <div style="background-color: #f8fafc; padding: 32px 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-      <div style="max-width: 650px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); border: 1px solid #e2e8f0;">
+      <!--[if (gte mso 9)|(IE)]>
+      <table width="600" align="center" style="border-spacing:0;font-family:sans-serif;color:#333333;" >
+      <tr>
+      <td style="padding:0;" >
+      <![endif]-->
+      <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); border: 1px solid #e2e8f0;">
         <!-- Header -->
         <div style="background-color: #1e3a8a; padding: 28px 24px; text-align: center; color: #ffffff;">
           <h2 style="margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.025em;">Outstanding Balance Reminder</h2>
@@ -661,6 +670,11 @@ function compileEmailHtml(customer, customerInvoices, templateStr, formatCurrenc
           ${formattedTemplate}
         </div>
       </div>
+      <!--[if (gte mso 9)|(IE)]>
+      </td>
+      </tr>
+      </table>
+      <![endif]-->
     </div>
   `;
 
