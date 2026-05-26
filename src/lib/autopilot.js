@@ -70,56 +70,47 @@ function generateTypeTableHtml(type, invoices) {
   html += `</tbody>`;
   html += `</table>`;
   
-  // 2. MOBILE ONLY INVOICE CARDS LIST (hidden by default on desktop, absolutely beautiful on mobile screens)
-  html += `<div class="mobile-only-cards" style="display: none; max-height: 0; overflow: hidden; width: 100%;">`;
+  // 2. MOBILE ONLY 3-COLUMN "DOUBLE-DECKER" TABLE (hidden on desktop, beautiful on mobile screens)
+  html += `<table class="mobile-only-table" cellpadding="0" cellspacing="0" border="0" style="display: none; width: 100%; max-height: 0; overflow: hidden; border-collapse: collapse; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 12px; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 12px;">`;
+  html += `<thead>
+    <tr style="background-color: #f1f5f9; border-bottom: 2px solid #cbd5e1; text-align: left; color: #1e293b; font-weight: 700; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;">
+      <th width="35%" style="padding: 10px 8px; border-bottom: 1px solid #cbd5e1;">Invoice / Date</th>
+      <th width="30%" style="padding: 10px 8px; border-bottom: 1px solid #cbd5e1;">Cat / GST</th>
+      <th width="35%" style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #cbd5e1;">Gross / Net</th>
+    </tr>
+  </thead>`;
+  html += `<tbody>`;
   
+  let rowIndex = 0;
   invoices.forEach(inv => {
     const gross = cleanAmount(inv['Gross Invoice']);
     const gst = cleanAmount(inv['GST']);
     const net = cleanAmount(inv['Net Invoice Value'] || inv['Invoice amount']);
+    const rowBg = rowIndex % 2 === 0 ? '#ffffff' : '#f8fafc';
+    rowIndex++;
     
-    html += `
-      <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.01); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-        <!-- Card Header Info -->
-        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 10px;">
-          <tr>
-            <td align="left" style="vertical-align: middle;">
-              <span style="display: inline-block; padding: 3px 8px; background-color: #eff6ff; color: #1e40af; border-radius: 6px; font-size: 10px; font-weight: 700; border: 1px solid #dbeafe; word-break: break-all;">${inv['Invoice No'] || inv['Invoice number']}</span>
-            </td>
-            <td align="right" style="vertical-align: middle; font-size: 11px; color: #64748b; font-weight: 500;">
-              ${inv['Date'] || inv['Invoice date'] || inv.Date}
-            </td>
-          </tr>
-        </table>
-        
-        <!-- Category & Secondary Values -->
-        <div style="font-size: 13px; color: #334155; font-weight: 600; margin-bottom: 4px; text-align: left;">
-          <span style="display: inline-block; width: 6px; height: 6px; background-color: #3b82f6; border-radius: 50%; margin-right: 5px; vertical-align: middle;"></span>
-          <span style="vertical-align: middle;">${inv['Category'] || 'General'}</span>
+    html += `<tr style="background-color: ${rowBg}; border-bottom: 1px solid #e2e8f0; color: #0f172a;">
+      <td width="35%" style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0; vertical-align: top;">
+        <div style="margin-bottom: 4px;">
+          <span style="display: inline-block; padding: 2px 6px; background-color: #eff6ff; color: #1e40af; border-radius: 4px; font-size: 10px; font-weight: 700; border: 1px solid #dbeafe; word-break: break-all;">${inv['Invoice No'] || inv['Invoice number']}</span>
         </div>
-        <div style="font-size: 11px; color: #64748b; text-align: left;">
-          Gross: ${formatCurrency(gross)} &nbsp;•&nbsp; GST: ${formatCurrency(gst)}
+        <div style="font-size: 10px; color: #64748b; font-weight: 500;">${inv['Date'] || inv['Invoice date'] || inv.Date}</div>
+      </td>
+      <td width="30%" style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0; vertical-align: top;">
+        <div style="margin-bottom: 4px; line-height: 1.2;">
+          <span style="display: inline-block; width: 6px; height: 6px; background-color: #3b82f6; border-radius: 50%; margin-right: 4px; vertical-align: middle;"></span>
+          <span style="font-weight: 600; color: #334155; vertical-align: middle; font-size: 11px; word-break: break-word;">${inv['Category'] || 'General'}</span>
         </div>
-        
-        <!-- Divider -->
-        <div style="border-top: 1px solid #f1f5f9; margin: 10px 0;"></div>
-        
-        <!-- Net Amount Total Due Row -->
-        <table width="100%" cellpadding="0" cellspacing="0" border="0">
-          <tr>
-            <td align="left" style="vertical-align: middle; font-size: 10px; color: #475569; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">
-              Net Amount
-            </td>
-            <td align="right" style="vertical-align: middle; font-size: 14px; font-weight: 800; color: #b91c1c; white-space: nowrap;">
-              ${formatCurrency(net)}
-            </td>
-          </tr>
-        </table>
-      </div>
-    `;
+        <div style="font-size: 10px; color: #64748b;">GST: ${formatCurrency(gst)}</div>
+      </td>
+      <td width="35%" style="padding: 12px 10px; text-align: right; border-bottom: 1px solid #e2e8f0; vertical-align: top;">
+        <div style="font-size: 10px; color: #64748b;">Gross: ${formatCurrency(gross)}</div>
+        <div style="font-weight: 800; color: #b91c1c; font-size: 13px; margin-top: 4px; white-space: nowrap;">${formatCurrency(net)}</div>
+      </td>
+    </tr>`;
   });
-  
-  html += `</div>`;
+  html += `</tbody>`;
+  html += `</table>`;
   
   // Specific Subtotal Below Table
   html += `<div class="subtotal-container" style="text-align: right; margin-top: 10px; font-size: 13px; color: #0f172a; font-weight: 700;">
@@ -168,7 +159,7 @@ function compileEmailHtml(customer, customerInvoices, templateStr, lastSentDate 
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style type="text/css">
-          .mobile-only-cards {
+          .mobile-only-table {
             display: none !important;
             mso-hide: all !important; /* Outlook Desktop hide */
             overflow: hidden !important;
@@ -183,8 +174,8 @@ function compileEmailHtml(customer, customerInvoices, templateStr, lastSentDate 
               width: 0 !important;
               max-height: 0 !important;
             }
-            .mobile-only-cards {
-              display: block !important;
+            .mobile-only-table {
+              display: table !important;
               width: 100% !important;
               max-height: none !important;
               overflow: visible !important;
