@@ -37,14 +37,9 @@ function generateTypeTableHtml(type, invoices) {
   let html = `<div style="margin-top: 24px; margin-bottom: 28px;">`;
   html += `<h3 style="font-size: 15px; font-weight: 700; color: #1e3a8a; margin: 0 0 12px 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; text-transform: uppercase; letter-spacing: 0.025em;">${type}s</h3>`;
   
-  // Clean scrollable wrapper with native horizontal swipe scrolling
-  html += `<div class="table-scroll-container" style="width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 12px;">`;
-  
-  // Table with explicit min-width to trigger smooth scroll viewports without overlapping
-  html += `<table class="responsive-table" cellpadding="0" cellspacing="0" border="0" style="width:100%; min-width: 600px; border-collapse: collapse; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; table-layout: auto;">`;
-  
-  // Table Headers with explicit width percentages
-  html += `<thead class="desktop-header">
+  // 1. DESKTOP ONLY 6-COLUMN TABLE (spacious and clear on wide screens)
+  html += `<table class="desktop-only-table" cellpadding="0" cellspacing="0" border="0" style="width:100%; border-collapse: collapse; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; margin-bottom: 12px;">`;
+  html += `<thead>
     <tr style="background-color: #f8fafc; border-bottom: 1px solid #cbd5e1; text-align: left; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;">
       <th width="15%" style="padding: 10px 8px; border-bottom: 1px solid #cbd5e1;">Date</th>
       <th width="18%" style="padding: 10px 8px; border-bottom: 1px solid #cbd5e1;">Invoice No</th>
@@ -54,10 +49,8 @@ function generateTypeTableHtml(type, invoices) {
       <th width="18%" style="padding: 10px 8px; border-bottom: 1px solid #cbd5e1;">Category</th>
     </tr>
   </thead>`;
-  
   html += `<tbody>`;
   
-  // Table Rows (retains a clean, spacious horizontal look)
   let subtotal = 0;
   invoices.forEach(inv => {
     const gross = cleanAmount(inv['Gross Invoice']);
@@ -65,19 +58,68 @@ function generateTypeTableHtml(type, invoices) {
     const net = cleanAmount(inv['Net Invoice Value'] || inv['Invoice amount']);
     subtotal += net;
     
-    html += `<tr class="responsive-tr" style="border-bottom: 1px solid #e2e8f0; color: #0f172a;">
-      <td class="responsive-td" width="15%" style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; word-break: break-word;">${inv['Date'] || inv['Invoice date'] || inv.Date}</td>
-      <td class="responsive-td" width="18%" style="padding: 10px 8px; font-weight: 600; color: #2563eb; border-bottom: 1px solid #e2e8f0; word-break: break-all;">${inv['Invoice No'] || inv['Invoice number']}</td>
-      <td class="responsive-td" width="17%" style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">${formatCurrency(gross)}</td>
-      <td class="responsive-td" width="14%" style="padding: 10px 8px; text-align: right; color: #475569; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">${formatCurrency(gst)}</td>
-      <td class="responsive-td responsive-td-net" width="18%" style="padding: 10px 8px; text-align: right; color: #dc2626; font-weight: 700; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">${formatCurrency(net)}</td>
-      <td class="responsive-td" width="18%" style="padding: 10px 8px; color: #475569; border-bottom: 1px solid #e2e8f0; word-break: break-word;">${inv['Category'] || ''}</td>
+    html += `<tr style="border-bottom: 1px solid #e2e8f0; color: #0f172a;">
+      <td width="15%" style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; word-break: break-word;">${inv['Date'] || inv['Invoice date'] || inv.Date}</td>
+      <td width="18%" style="padding: 10px 8px; font-weight: 600; color: #2563eb; border-bottom: 1px solid #e2e8f0; word-break: break-all;">${inv['Invoice No'] || inv['Invoice number']}</td>
+      <td width="17%" style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">${formatCurrency(gross)}</td>
+      <td width="14%" style="padding: 10px 8px; text-align: right; color: #475569; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">${formatCurrency(gst)}</td>
+      <td width="18%" style="padding: 10px 8px; text-align: right; color: #dc2626; font-weight: 700; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">${formatCurrency(net)}</td>
+      <td width="18%" style="padding: 10px 8px; color: #475569; border-bottom: 1px solid #e2e8f0; word-break: break-word;">${inv['Category'] || ''}</td>
     </tr>`;
   });
-  
   html += `</tbody>`;
   html += `</table>`;
-  html += `</div>`; // Close scroll wrapper
+  
+  // 2. MOBILE ONLY INVOICE CARDS LIST (hidden by default on desktop, absolutely beautiful on mobile screens)
+  html += `<div class="mobile-only-cards" style="display: none; max-height: 0; overflow: hidden; width: 100%;">`;
+  
+  invoices.forEach(inv => {
+    const gross = cleanAmount(inv['Gross Invoice']);
+    const gst = cleanAmount(inv['GST']);
+    const net = cleanAmount(inv['Net Invoice Value'] || inv['Invoice amount']);
+    
+    html += `
+      <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.01); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+        <!-- Card Header Info -->
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 10px;">
+          <tr>
+            <td align="left" style="vertical-align: middle;">
+              <span style="display: inline-block; padding: 3px 8px; background-color: #eff6ff; color: #1e40af; border-radius: 6px; font-size: 10px; font-weight: 700; border: 1px solid #dbeafe; word-break: break-all;">${inv['Invoice No'] || inv['Invoice number']}</span>
+            </td>
+            <td align="right" style="vertical-align: middle; font-size: 11px; color: #64748b; font-weight: 500;">
+              ${inv['Date'] || inv['Invoice date'] || inv.Date}
+            </td>
+          </tr>
+        </table>
+        
+        <!-- Category & Secondary Values -->
+        <div style="font-size: 13px; color: #334155; font-weight: 600; margin-bottom: 4px; text-align: left;">
+          <span style="display: inline-block; width: 6px; height: 6px; background-color: #3b82f6; border-radius: 50%; margin-right: 5px; vertical-align: middle;"></span>
+          <span style="vertical-align: middle;">${inv['Category'] || 'General'}</span>
+        </div>
+        <div style="font-size: 11px; color: #64748b; text-align: left;">
+          Gross: ${formatCurrency(gross)} &nbsp;•&nbsp; GST: ${formatCurrency(gst)}
+        </div>
+        
+        <!-- Divider -->
+        <div style="border-top: 1px solid #f1f5f9; margin: 10px 0;"></div>
+        
+        <!-- Net Amount Total Due Row -->
+        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td align="left" style="vertical-align: middle; font-size: 10px; color: #475569; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">
+              Net Amount
+            </td>
+            <td align="right" style="vertical-align: middle; font-size: 14px; font-weight: 800; color: #b91c1c; white-space: nowrap;">
+              ${formatCurrency(net)}
+            </td>
+          </tr>
+        </table>
+      </div>
+    `;
+  });
+  
+  html += `</div>`;
   
   // Specific Subtotal Below Table
   html += `<div class="subtotal-container" style="text-align: right; margin-top: 10px; font-size: 13px; color: #0f172a; font-weight: 700;">
@@ -126,15 +168,26 @@ function compileEmailHtml(customer, customerInvoices, templateStr, lastSentDate 
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style type="text/css">
+          .mobile-only-cards {
+            display: none !important;
+            mso-hide: all !important; /* Outlook Desktop hide */
+            overflow: hidden !important;
+            width: 0 !important;
+            max-height: 0 !important;
+          }
           @media only screen and (max-width: 599px) {
-            .table-scroll-container {
-              width: 100% !important;
-              overflow-x: auto !important;
-              -webkit-overflow-scrolling: touch !important;
+            .desktop-only-table {
+              display: none !important;
+              mso-hide: all !important;
+              overflow: hidden !important;
+              width: 0 !important;
+              max-height: 0 !important;
             }
-            .responsive-table {
+            .mobile-only-cards {
+              display: block !important;
               width: 100% !important;
-              min-width: 600px !important;
+              max-height: none !important;
+              overflow: visible !important;
             }
           }
         </style>
