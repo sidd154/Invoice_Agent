@@ -34,23 +34,50 @@ export async function fetchSheetsData() {
   const sheets = google.sheets({ version: 'v4', auth });
   const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID || '1f9xXZY6Z8RCAEAux6QBYeMzYWMpeVZUQhjinpCZD_Rs';
 
-  // Fetch Invoices from Outstanding-detail
-  const invoiceResponse = await sheets.spreadsheets.values.get({
-    spreadsheetId,
-    range: "'Outstanding-detail'!A:K",
-  });
+  // Fetch Invoices with adaptive fallbacks
+  let invoicesData;
+  try {
+    const invoiceResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: "'Outstanding-detail'!A:K",
+    });
+    invoicesData = invoiceResponse.data.values;
+  } catch (e1) {
+    try {
+      console.log("Outstanding-detail tab not found, attempting fallback to 'Invoice Details'...");
+      const invoiceResponse = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: "Invoice Details!A:F",
+      });
+      invoicesData = invoiceResponse.data.values;
+    } catch (e2) {
+      throw new Error(`Unable to find 'Outstanding-detail' or 'Invoice Details' tab in Spreadsheet ID: ${spreadsheetId}. Details: ${e1.message}`);
+    }
+  }
 
-  // Fetch Customers from contacts
-  const customerResponse = await sheets.spreadsheets.values.get({
-    spreadsheetId,
-    range: "'contacts'!A:B",
-  });
-
-  const invoicesData = invoiceResponse.data.values;
-  const customersData = customerResponse.data.values;
+  // Fetch Customers with adaptive fallbacks
+  let customersData;
+  try {
+    const customerResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: "'contacts'!A:B",
+    });
+    customersData = customerResponse.data.values;
+  } catch (e1) {
+    try {
+      console.log("contacts tab not found, attempting fallback to 'Customer Contacts'...");
+      const customerResponse = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: "Customer Contacts!A:B",
+      });
+      customersData = customerResponse.data.values;
+    } catch (e2) {
+      throw new Error(`Unable to find 'contacts' or 'Customer Contacts' tab in Spreadsheet ID: ${spreadsheetId}. Details: ${e1.message}`);
+    }
+  }
 
   if (!invoicesData || invoicesData.length === 0 || !customersData || customersData.length === 0) {
-    throw new Error('Spreadsheet is empty or tabs not found.');
+    throw new Error('Spreadsheet was fetched but contains empty datasets.');
   }
 
   const invoiceHeaders = invoicesData[0].map(h => (h || '').trim());
