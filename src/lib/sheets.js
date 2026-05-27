@@ -34,47 +34,54 @@ export async function fetchSheetsData() {
   const sheets = google.sheets({ version: 'v4', auth });
   const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID || '1f9xXZY6Z8RCAEAux6QBYeMzYWMpeVZUQhjinpCZD_Rs';
 
-  // Fetch Invoices with adaptive fallbacks
-  let invoicesData;
+  // 1. Fetch spreadsheet metadata to discover available tabs
+  let sheetTitles = [];
   try {
-    const invoiceResponse = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range: "'Outstanding-detail'!A:K",
-    });
-    invoicesData = invoiceResponse.data.values;
-  } catch (e1) {
-    try {
-      console.log("Outstanding-detail tab not found, attempting fallback to 'Invoice Details'...");
-      const invoiceResponse = await sheets.spreadsheets.values.get({
-        spreadsheetId,
-        range: "Invoice Details!A:F",
-      });
-      invoicesData = invoiceResponse.data.values;
-    } catch (e2) {
-      throw new Error(`Unable to find 'Outstanding-detail' or 'Invoice Details' tab in Spreadsheet ID: ${spreadsheetId}. Details: ${e1.message}`);
+    const meta = await sheets.spreadsheets.get({ spreadsheetId });
+    sheetTitles = meta.data.sheets.map(s => s.properties.title.trim());
+  } catch (err) {
+    throw new Error(`Failed to access Google Spreadsheet (ID: ${spreadsheetId}). Please verify the spreadsheet ID and share permissions. Details: ${err.message}`);
+  }
+
+  // 2. Dynamically determine which invoice sheet to query
+  let invoiceRange = "";
+  if (sheetTitles.includes("Outstanding-detail")) {
+    invoiceRange = "Outstanding-detail!A:K";
+  } else if (sheetTitles.includes("Invoice Details")) {
+    invoiceRange = "Invoice Details!A:F";
+  } else {
+    // Check if there is a close case-insensitive or spacing match
+    const match = sheetTitles.find(t => t.toLowerCase().replace(/[\s-_]+/g, '') === "outstandingdetail");
+    if (match) {
+      invoiceRange = `${match}!A:K`;
+    } else {
+      throw new Error(`Could not find the 'Outstanding-detail' or 'Invoice Details' tab in your spreadsheet (ID: ${spreadsheetId}). The tabs found in your spreadsheet are: [${sheetTitles.join(", ")}]. Please rename your tab to 'Outstanding-detail' exactly.`);
     }
   }
 
-  // Fetch Customers with adaptive fallbacks
-  let customersData;
-  try {
-    const customerResponse = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range: "'contacts'!A:B",
-    });
-    customersData = customerResponse.data.values;
-  } catch (e1) {
-    try {
-      console.log("contacts tab not found, attempting fallback to 'Customer Contacts'...");
-      const customerResponse = await sheets.spreadsheets.values.get({
-        spreadsheetId,
-        range: "Customer Contacts!A:B",
-      });
-      customersData = customerResponse.data.values;
-    } catch (e2) {
-      throw new Error(`Unable to find 'contacts' or 'Customer Contacts' tab in Spreadsheet ID: ${spreadsheetId}. Details: ${e1.message}`);
+  // 3. Dynamically determine which contacts sheet to query
+  let customerRange = "";
+  if (sheetTitles.includes("contacts")) {
+    customerRange = "contacts!A:B";
+  } else if (sheetTitles.includes("Customer Contacts")) {
+    customerRange = "Customer Contacts!A:B";
+  } else {
+    const match = sheetTitles.find(t => t.toLowerCase().replace(/[\s-_]+/g, '') === "contacts" || t.toLowerCase().replace(/[\s-_]+/g, '') === "customercontacts");
+    if (match) {
+      customerRange = `${match}!A:B`;
+    } else {
+      throw new Error(`Could not find the 'contacts' or 'Customer Contacts' tab in your spreadsheet (ID: ${spreadsheetId}). The tabs found in your spreadsheet are: [${sheetTitles.join(", ")}]. Please rename your tab to 'contacts' exactly.`);
     }
   }
+
+  // 4. Fetch datasets using the dynamically resolved ranges
+  const [invoiceResponse, customerResponse] = await Promise.all([
+    sheets.spreadsheets.values.get({ spreadsheetId, range: invoiceRange }),
+    sheets.spreadsheets.values.get({ spreadsheetId, range: customerRange })
+  ]);
+
+  const invoicesData = invoiceResponse.data.values;
+  const customersData = customerResponse.data.values;
 
   if (!invoicesData || invoicesData.length === 0 || !customersData || customersData.length === 0) {
     throw new Error('Spreadsheet was fetched but contains empty datasets.');
