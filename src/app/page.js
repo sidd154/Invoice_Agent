@@ -214,11 +214,9 @@ export default function App() {
       if (!res.ok) throw new Error(data.error || 'Failed to sync');
       
       if (data.invoices && data.customers) {
-        // Overwrite logic to maintain an exact mirror of Google Sheets and clean stale data
-        const newInvoices = data.invoices;
-        const newCustomers = data.customers;
-
-        await saveData(newInvoices, newCustomers);
+        setInvoices(data.invoices);
+        setCustomers(data.customers);
+        setDataExists(true);
         alert("Successfully synced with Google Sheets!");
         if(!dataExists) setActiveTab('dashboard');
       }
