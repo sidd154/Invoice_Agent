@@ -141,11 +141,13 @@ function compileEmailHtml(customer, customerInvoices, templateStr, lastSentDate 
   });
   
   // Replace placeholders
+  const salutationName = customer['Address-to'] || customer['Customer Name'] || '';
   let formattedTemplate = templateStr
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/\{\{customer_name\}\}/g, `<strong>${customer['Customer Name']}</strong>`)
+    .replace(/\{\{address_to\}\}/g, `<strong>${salutationName}</strong>`)
+    .replace(/\{\{customer_name\}\}/g, `<strong>${salutationName}</strong>`)
     .replace(/\{\{company_name\}\}/g, `<strong>${companyName}</strong>`)
     .replace(/\{\{total_pending\}\}/g, `<strong style="color: #dc2626; font-size: 16px;">${formatCurrency(pendingAmount)}</strong>`)
     .replace(/\{\{last_sent_date\}\}/g, lastSentDate ? `<strong>${new Date(lastSentDate).toLocaleDateString()}</strong>` : '')
@@ -338,9 +340,12 @@ export async function runAutopilotReminders() {
     const customerData = customers.find(c => c['Customer Name'] === customerName);
     if (customerData) {
       const customerOpenInvoices = groupedInvoices[customerName];
-      const toEmails = parseEmails(customerData['Email ID']);
+      const allEmails = parseEmails(customerData['Email ID']);
+      const toEmails = allEmails.filter(e => !e.toLowerCase().includes('@pixel-studios.com'));
+      const contactCcs = allEmails.filter(e => e.toLowerCase().includes('@pixel-studios.com'));
+      const finalTo = toEmails.length > 0 ? toEmails : allEmails;
 
-      if (toEmails.length > 0) {
+      if (finalTo.length > 0) {
         const compiledHtml = compileEmailHtml(
           customerData, 
           customerOpenInvoices, 
@@ -356,7 +361,7 @@ export async function runAutopilotReminders() {
             .filter(Boolean)
         )];
         const agentCcs = uniqueAgents.map(a => agentEmails[a.toLowerCase()]).filter(Boolean);
-        const mergedCcs = [...new Set([...globalCcEmails, ...agentCcs])];
+        const mergedCcs = [...new Set([...globalCcEmails, ...agentCcs, ...contactCcs])];
 
         const dateOptions = { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Kolkata' };
         const formattedDate = new Date().toLocaleString('en-IN', dateOptions).replace(/,/g, '');
@@ -365,7 +370,7 @@ export async function runAutopilotReminders() {
         try {
           // Send email using the unified mail helper (SMTP or Resend)
           await sendEmail({
-            to: toEmails,
+            to: finalTo,
             cc: mergedCcs.length > 0 ? mergedCcs : null,
             subject: dynamicSubject,
             html: compiledHtml,
@@ -376,7 +381,7 @@ export async function runAutopilotReminders() {
           const newRecord = {
             id: Math.random().toString(36).substr(2, 9),
             customer_name: customerName,
-            email: customerData['Email ID'],
+            email: finalTo.join(', '),
             type: 'Automated Reminder',
             sent_at: new Date().toISOString(),
             invoice_ids: customerOpenInvoices.map(i => i['Invoice number'])

@@ -62,13 +62,13 @@ export async function fetchSheetsData() {
   // 3. Dynamically determine which contacts sheet to query
   let customerRange = "";
   if (sheetTitles.includes("contacts")) {
-    customerRange = "contacts!A:B";
+    customerRange = "contacts!A:C";
   } else if (sheetTitles.includes("Customer Contacts")) {
-    customerRange = "Customer Contacts!A:B";
+    customerRange = "Customer Contacts!A:C";
   } else {
     const match = sheetTitles.find(t => t.toLowerCase().replace(/[\s-_]+/g, '') === "contacts" || t.toLowerCase().replace(/[\s-_]+/g, '') === "customercontacts");
     if (match) {
-      customerRange = `${match}!A:B`;
+      customerRange = `${match}!A:C`;
     } else {
       throw new Error(`Could not find the 'contacts' or 'Customer Contacts' tab in your spreadsheet (ID: ${spreadsheetId}). The tabs found in your spreadsheet are: [${sheetTitles.join(", ")}]. Please rename your tab to 'contacts' exactly.`);
     }
@@ -114,6 +114,7 @@ export async function fetchSheetsData() {
     // Unified backwards-compatible customer mappings
     obj['Customer Name'] = obj['Customer Name'] || '';
     obj['Email ID'] = obj['Mail Id'] || obj['Email ID'] || '';
+    obj['Address-to'] = obj['Address-to'] || obj['Address To'] || obj['address_to'] || '';
     
     return obj;
   });

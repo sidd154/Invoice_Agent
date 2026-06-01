@@ -42,7 +42,12 @@ export async function GET() {
       WHERE id = 1;
     `, [firstNotice]);
 
-    return NextResponse.json({ success: true, message: 'Database migrated and agent mappings table initialized successfully!' });
+    // Ensure the customer email column type is text to handle long lists of email addresses
+    await client.query(`
+      ALTER TABLE customers ALTER COLUMN email TYPE TEXT;
+    `);
+
+    return NextResponse.json({ success: true, message: 'Database migrated, agent mappings table initialized, and customer email column altered to TEXT successfully!' });
   } catch (error) {
     console.error('Migration Error:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

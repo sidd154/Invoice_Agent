@@ -677,11 +677,13 @@ function compileEmailHtml(customer, customerInvoices, templateStr, formatCurrenc
   });
   
   // Replace placeholders
+  const salutationName = customer['Address-to'] || customer['Customer Name'] || '';
   let formattedTemplate = templateStr
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/\{\{customer_name\}\}/g, `<strong>${customer['Customer Name']}</strong>`)
+    .replace(/\{\{address_to\}\}/g, `<strong>${salutationName}</strong>`)
+    .replace(/\{\{customer_name\}\}/g, `<strong>${salutationName}</strong>`)
     .replace(/\{\{company_name\}\}/g, `<strong>${companyName}</strong>`)
     .replace(/\{\{total_pending\}\}/g, `<strong style="color: #dc2626; font-size: 16px;">${formatCurrency(pendingAmount)}</strong>`)
     .replace(/\{\{last_sent_date\}\}/g, lastSentDate ? `<strong>${new Date(lastSentDate).toLocaleDateString()}</strong>` : '')
@@ -796,24 +798,28 @@ function QueueView({ invoices, customers, templates, formatCurrency, saveHistory
       }
     });
     
+    const rawEmail = client.customerData['Email ID'] || client.customerData['Mail Id'] || client.customerData.email || "";
+    const cleanEmails = rawEmail.split(/[;,]/).map(e => e.trim()).filter(Boolean).filter(e => {
+      const lower = e.toLowerCase();
+      return !lower.includes('example.com') && !lower.includes('recipient@');
+    });
+
+    const toEmails = cleanEmails.filter(e => !e.toLowerCase().includes('@pixel-studios.com'));
+    const contactCcs = cleanEmails.filter(e => e.toLowerCase().includes('@pixel-studios.com'));
+    const finalTo = toEmails.length > 0 ? toEmails.join(', ') : cleanEmails.join(', ');
+
     const agentCcs = uniqueAgents.map(a => agentEmailsMap[a.toLowerCase()]).filter(Boolean);
     const globalCcs = settings.ccEmails ? settings.ccEmails.split(/[;,]/).map(e => e.trim()).filter(Boolean) : [];
-    const resolvedCcLine = [...new Set([...globalCcs, ...agentCcs])].join(', ');
+    const resolvedCcLine = [...new Set([...globalCcs, ...agentCcs, ...contactCcs])].join(', ');
 
     setSelectedClient(client);
     setCompiledHtml(compileEmailHtml(client.customerData, client.invoices, templates.firstNotice, formatCurrency, null, settings.companyName));
     setCustomCc(resolvedCcLine);
+    setCustomTo(finalTo);
     
     const dateOptions = { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Kolkata' };
     const formattedDate = new Date().toLocaleString('en-IN', dateOptions).replace(/,/g, '');
     setCustomSubject(`Statement of Account - ${client.customerName} (As of ${formattedDate})`);
-    
-    const rawEmail = client.customerData['Email ID'] || client.customerData['Mail Id'] || client.customerData.email || "";
-    const cleanEmail = rawEmail.split(/[;,]/).map(e => e.trim()).filter(Boolean).filter(e => {
-      const lower = e.toLowerCase();
-      return !lower.includes('example.com') && !lower.includes('recipient@');
-    }).join(', ');
-    setCustomTo(cleanEmail);
   };
 
   const handleSend = async () => {
