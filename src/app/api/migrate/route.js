@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const connectionString = process.env.DATABASE_URL || "postgresql://postgres:221001154%40Siddhanth@db.acbymfzwsugaxrnvqrsh.supabase.co:5432/postgres";
+  const connectionString = process.env.DATABASE_URL || "postgresql://postgres.acbymfzwsugaxrnvqrsh:221001154%40Siddhanth@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres";
   
   const client = new Client({
     connectionString,
