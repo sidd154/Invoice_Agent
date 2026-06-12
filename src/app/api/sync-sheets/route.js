@@ -21,8 +21,15 @@ export async function GET() {
       supabase.from('customers').delete().neq('id', 0)
     ]);
 
-    // 2. Format and insert new authoritative invoice entries
-    const formattedInvoices = invoices.map(inv => ({
+    // 2. Format and insert new authoritative invoice entries (Deduplicated)
+    const uniqueInvoicesMap = new Map();
+    invoices.forEach(inv => {
+      if (inv['Invoice number']) {
+        uniqueInvoicesMap.set(inv['Invoice number'], inv);
+      }
+    });
+
+    const formattedInvoices = Array.from(uniqueInvoicesMap.values()).map(inv => ({
       invoice_number: inv['Invoice number'],
       customer: inv.Customer,
       amount: inv['Invoice amount'],
@@ -38,8 +45,16 @@ export async function GET() {
       }
     }
 
-    // 3. Format and insert new authoritative customer entries
-    const formattedCustomers = customers.map(c => {
+    // 3. Format and insert new authoritative customer entries (Deduplicated)
+    const uniqueCustomersMap = new Map();
+    customers.forEach(c => {
+      const nameVal = c['Customer Name'] || c.name || '';
+      if (nameVal) {
+        uniqueCustomersMap.set(nameVal, c);
+      }
+    });
+
+    const formattedCustomers = Array.from(uniqueCustomersMap.values()).map(c => {
       const emailVal = c['Email ID'] || c['Mail Id'] || c.email || '';
       const nameVal = c['Customer Name'] || c.name || '';
       return {
