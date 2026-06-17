@@ -338,6 +338,8 @@ export async function runAutopilotReminders() {
 
   const globalCcEmails = settings.cc_emails ? parseEmails(settings.cc_emails) : [];
   const sentEmails = [];
+  const failedEmails = [];
+  const skippedCustomers = [];
 
   for (const customerName of Object.keys(groupedInvoices)) {
     const customerData = customers.find(c => c['Customer Name'] === customerName);
@@ -393,36 +395,75 @@ export async function runAutopilotReminders() {
           sentEmails.push({ customer: customerName, email: customerData['Email ID'] });
         } catch (err) {
           console.error(`Autopilot email dispatch failed for ${customerName}:`, err);
-          if (settings.admin_alert_email) {
-            await sendEmail({
-              to: [settings.admin_alert_email],
-              subject: `⚠️ URGENT: Autopilot Failure for ${customerName}`,
-              html: `<div style="font-family:sans-serif; padding: 20px; background: #fff0f2; border: 1px solid #fda4af; border-radius: 8px;">
-                <h2 style="color: #e11d48; margin-top: 0;">Autopilot Dispatch Error</h2>
-                <p>Failed to send automated reminder to <strong>${customerName}</strong>.</p>
-                <p><strong>Error Details:</strong> ${err.message}</p>
-              </div>`,
-              settings: settings
-            }).catch(e => console.error("Failed to send admin autopilot alert", e));
-          }
+          failedEmails.push({ customer: customerName, error: err.message });
         }
 
         // Wait 5 seconds before sending the next email to process them one-by-one
         await new Promise(resolve => setTimeout(resolve, 5000));
       } else {
         console.warn(`No valid emails resolved for customer: ${customerName}`);
+        skippedCustomers.push({ customer: customerName, reason: "No valid email addresses found." });
       }
     } else {
       console.warn(`Customer contact not found for open invoices under client name: ${customerName}`);
+      skippedCustomers.push({ customer: customerName, reason: "Customer contact info missing in DB." });
     }
   }
 
   // Update last run timestamp in the database to mark this slot as successfully processed
   await supabase.from('global_settings').update({ last_autopilot_run: new Date().toISOString() }).eq('id', 1);
 
+  // Dispatch Autopilot Summary Report
+  if (settings.admin_alert_email) {
+    let summaryHtml = `<div style="font-family:sans-serif; padding: 20px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
+      <h2 style="color: #1e3a8a; margin-top: 0; border-bottom: 2px solid #cbd5e1; padding-bottom: 8px;">Autopilot Execution Report</h2>
+      <p style="font-size: 14px; color: #334155;">The automated background scheduler has completed its run.</p>
+      
+      <div style="display: flex; gap: 16px; margin: 20px 0;">
+        <div style="background: #ffffff; border: 1px solid #cbd5e1; padding: 12px; border-radius: 6px; flex: 1;">
+          <div style="font-size: 12px; color: #64748b; font-weight: bold; text-transform: uppercase;">Total Sent</div>
+          <div style="font-size: 24px; color: #10b981; font-weight: bold;">${sentEmails.length}</div>
+        </div>
+        <div style="background: #ffffff; border: 1px solid #cbd5e1; padding: 12px; border-radius: 6px; flex: 1;">
+          <div style="font-size: 12px; color: #64748b; font-weight: bold; text-transform: uppercase;">Failed</div>
+          <div style="font-size: 24px; color: #ef4444; font-weight: bold;">${failedEmails.length}</div>
+        </div>
+        <div style="background: #ffffff; border: 1px solid #cbd5e1; padding: 12px; border-radius: 6px; flex: 1;">
+          <div style="font-size: 12px; color: #64748b; font-weight: bold; text-transform: uppercase;">Skipped</div>
+          <div style="font-size: 24px; color: #f59e0b; font-weight: bold;">${skippedCustomers.length}</div>
+        </div>
+      </div>
+    `;
+
+    if (failedEmails.length > 0) {
+      summaryHtml += `<h3 style="color: #b91c1c; margin-top: 24px;">❌ Failed Deliveries</h3>
+      <ul style="color: #334155; font-size: 13px;">
+        ${failedEmails.map(f => `<li><strong>${f.customer}</strong>: ${f.error}</li>`).join('')}
+      </ul>`;
+    }
+
+    if (skippedCustomers.length > 0) {
+      summaryHtml += `<h3 style="color: #b45309; margin-top: 24px;">⚠️ Skipped Customers</h3>
+      <ul style="color: #334155; font-size: 13px;">
+        ${skippedCustomers.map(s => `<li><strong>${s.customer}</strong>: ${s.reason}</li>`).join('')}
+      </ul>`;
+    }
+
+    summaryHtml += `</div>`;
+
+    await sendEmail({
+      to: [settings.admin_alert_email],
+      subject: `Autopilot Report: ${sentEmails.length} Sent, ${failedEmails.length} Failed, ${skippedCustomers.length} Skipped`,
+      html: summaryHtml,
+      settings: settings
+    }).catch(e => console.error("Failed to send admin summary report", e));
+  }
+
   return {
     success: true,
-    emailsSent: sentEmails
+    emailsSent: sentEmails,
+    emailsFailed: failedEmails,
+    customersSkipped: skippedCustomers
   };
 }
 
