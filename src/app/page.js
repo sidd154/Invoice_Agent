@@ -35,12 +35,13 @@ export default function App() {
   const [sentHistory, setSentHistory] = useState([]);
   const [agentMappings, setAgentMappings] = useState([]);
   const [templates, setTemplates] = useState(DEFAULT_TEMPLATES);
-  const [settings, setSettings] = useState({ followUpInterval: 10, companyName: 'Enterprise Finance', ccEmails: '' });
+  const [settings, setSettings] = useState({ followUpInterval: 10, companyName: 'Enterprise Finance', ccEmails: '', adminAlertEmail: 'finance@pixel-studios.com' });
   const [dataExists, setDataExists] = useState(false);
 
   // UI State
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isUploading, setIsUploading] = useState(false);
+  const [notification, setNotification] = useState(null);
 
   useEffect(() => {
     const auth = localStorage.getItem('pixelAuth');
@@ -87,7 +88,8 @@ export default function App() {
             smtpSecure: s.smtp_secure !== false,
             smtpFromEmail: s.smtp_from_email || '',
             scheduleDays: Array.isArray(s.schedule_days) ? s.schedule_days : ['Monday'],
-            scheduleTime: s.schedule_time || '11:00'
+            scheduleTime: s.schedule_time || '11:00',
+            adminAlertEmail: s.admin_alert_email || 'finance@pixel-studios.com'
           });
         }
         if (tempRes.data && tempRes.data.length > 0) {
@@ -217,11 +219,38 @@ export default function App() {
         setInvoices(data.invoices);
         setCustomers(data.customers);
         setDataExists(true);
-        alert("Successfully synced with Google Sheets!");
+        setNotification({ type: 'success', title: 'Sync Complete', message: 'Successfully synced with Google Sheets!' });
+        setTimeout(() => setNotification(null), 5000);
         if(!dataExists) setActiveTab('dashboard');
       }
     } catch(err) {
-      alert("Error syncing: " + err.message);
+      let parsedMessage = err.message;
+      let actionRequired = "Check your connection or API logs.";
+      if (err.message.includes('duplicate key')) {
+         parsedMessage = "Spreadsheet Contains Duplicate Records";
+         actionRequired = "There are duplicate customer names or invoice numbers in your Google Sheets. Please remove the duplicates and try again.";
+      }
+      
+      setNotification({ type: 'error', title: 'Sync Failed', message: parsedMessage, action: actionRequired });
+      
+      // Dispatch admin email
+      if (settings.adminAlertEmail) {
+        fetch('/api/send-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+             to: [settings.adminAlertEmail],
+             subject: '⚠️ URGENT: Billing App Sync Error',
+             html: `<div style="font-family:sans-serif; padding: 20px; background: #fff0f2; border: 1px solid #fda4af; border-radius: 8px;">
+               <h2 style="color: #e11d48; margin-top: 0;">System Error Detected</h2>
+               <p><strong>Error:</strong> ${parsedMessage}</p>
+               <p><strong>Raw Details:</strong> ${err.message}</p>
+               <p><strong>Recommended Action:</strong> ${actionRequired}</p>
+             </div>`,
+             config: settings
+          })
+        }).catch(e => console.error("Failed to send admin alert", e));
+      }
     }
     setIsUploading(false);
   };
@@ -285,7 +314,27 @@ export default function App() {
 
   // --- SaaS LAYOUT ---
   return (
-    <div className="layout-container">
+    <div className="layout-container relative overflow-hidden">
+      
+      {/* NOTIFICATION PANEL / DEBUGGER ALERT */}
+      {notification && (
+        <div className="absolute top-6 right-6 z-50 animate-fade-left" style={{ width: '380px' }}>
+          <div className={`rounded-xl shadow-xl border overflow-hidden bg-background ${notification.type === 'error' ? 'border-destructive/30' : 'border-emerald-500/30'}`}>
+            <div className={`px-4 py-3 border-b flex items-center justify-between ${notification.type === 'error' ? 'bg-destructive/10' : 'bg-emerald-500/10'}`}>
+              <div className="flex items-center gap-2">
+                {notification.type === 'error' ? <AlertCircle size={16} className="text-destructive"/> : <CheckCircle2 size={16} className="text-emerald-500"/>}
+                <h3 className={`text-sm font-bold ${notification.type === 'error' ? 'text-destructive' : 'text-emerald-500'}`}>{notification.title}</h3>
+              </div>
+              <button onClick={() => setNotification(null)} className="text-muted-foreground hover:text-foreground">✕</button>
+            </div>
+            <div className="p-4">
+              <p className="text-sm font-medium mb-1">{notification.message}</p>
+              {notification.action && <p className="text-xs text-muted-foreground mt-2 bg-secondary p-2 rounded border border-border/50"><strong>Action Required:</strong> {notification.action}</p>}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* SIDEBAR */}
       <div className="sidebar">
         <div className="sidebar-header">
@@ -370,7 +419,8 @@ export default function App() {
               smtp_secure: s.smtpSecure,
               smtp_from_email: s.smtpFromEmail,
               schedule_days: s.scheduleDays,
-              schedule_time: s.scheduleTime
+              schedule_time: s.scheduleTime,
+              admin_alert_email: s.adminAlertEmail
             }); 
           }} resetData={resetData} agentMappings={agentMappings} setAgentMappings={setAgentMappings} />}
         </div>
@@ -505,6 +555,7 @@ function InvoicesView({ invoices, formatCurrency }) {
               <th className="text-right">GST</th>
               <th className="text-right font-bold">Net Value</th>
               <th>Category</th>
+              <th className="text-center">Ageing</th>
               <th className="text-center">Agent</th>
               <th className="text-center">Status</th>
             </tr>
@@ -520,6 +571,7 @@ function InvoicesView({ invoices, formatCurrency }) {
                 <td className="text-right text-muted-foreground">{formatCurrency(inv['GST'])}</td>
                 <td className="text-right font-bold text-destructive">{formatCurrency(inv['Net Invoice Value'] || inv['Invoice amount'])}</td>
                 <td className="text-xs text-muted-foreground max-w-[150px] truncate">{inv['Category'] || '-'}</td>
+                <td className="text-center font-bold text-rose-500">{inv['Ageing'] || '-'}</td>
                 <td className="text-center text-xs font-medium bg-secondary/30 px-2 py-0.5 rounded-full">{inv['me'] || '-'}</td>
                 <td className="text-center">
                   <span className={`badge ${inv.status?.toLowerCase() === 'open' ? 'badge-open' : 'badge-closed'}`}>
@@ -577,12 +629,13 @@ function generateTypeTableHtml(type, invoices, formatCurrency) {
   html += `<table class="desktop-only-table" cellpadding="0" cellspacing="0" border="0" style="width:100%; border-collapse: collapse; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; margin-bottom: 12px;">`;
   html += `<thead>
     <tr style="background-color: #f8fafc; border-bottom: 1px solid #cbd5e1; text-align: left; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;">
-      <th width="15%" style="padding: 10px 8px; border-bottom: 1px solid #cbd5e1;">Date</th>
-      <th width="18%" style="padding: 10px 8px; border-bottom: 1px solid #cbd5e1;">Invoice No</th>
-      <th width="17%" style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #cbd5e1;">Gross Invoice</th>
-      <th width="14%" style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #cbd5e1;">GST</th>
-      <th width="18%" style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #cbd5e1;">Net Value</th>
-      <th width="18%" style="padding: 10px 8px; border-bottom: 1px solid #cbd5e1;">Category</th>
+      <th width="12%" style="padding: 10px 8px; border-bottom: 1px solid #cbd5e1;">Date</th>
+      <th width="15%" style="padding: 10px 8px; border-bottom: 1px solid #cbd5e1;">Invoice No</th>
+      <th width="14%" style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #cbd5e1;">Gross Invoice</th>
+      <th width="12%" style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #cbd5e1;">GST</th>
+      <th width="16%" style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #cbd5e1;">Net Value</th>
+      <th width="16%" style="padding: 10px 8px; border-bottom: 1px solid #cbd5e1;">Category</th>
+      <th width="15%" style="padding: 10px 8px; text-align: center; border-bottom: 1px solid #cbd5e1;">Ageing (Days)</th>
     </tr>
   </thead>`;
   html += `<tbody>`;
@@ -595,12 +648,13 @@ function generateTypeTableHtml(type, invoices, formatCurrency) {
     subtotal += net;
     
     html += `<tr style="border-bottom: 1px solid #e2e8f0; color: #0f172a;">
-      <td width="15%" style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; word-break: break-word;">${inv['Date'] || inv['Invoice date'] || inv.Date}</td>
-      <td width="18%" style="padding: 10px 8px; font-weight: 600; color: #2563eb; border-bottom: 1px solid #e2e8f0; word-break: break-all;">${inv['Invoice No'] || inv['Invoice number']}</td>
-      <td width="17%" style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">${formatCurrency(gross)}</td>
-      <td width="14%" style="padding: 10px 8px; text-align: right; color: #475569; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">${formatCurrency(gst)}</td>
-      <td width="18%" style="padding: 10px 8px; text-align: right; color: #dc2626; font-weight: 700; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">${formatCurrency(net)}</td>
-      <td width="18%" style="padding: 10px 8px; color: #475569; border-bottom: 1px solid #e2e8f0; word-break: break-word;">${inv['Category'] || ''}</td>
+      <td width="12%" style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; word-break: break-word;">${inv['Date'] || inv['Invoice date'] || inv.Date}</td>
+      <td width="15%" style="padding: 10px 8px; font-weight: 600; color: #2563eb; border-bottom: 1px solid #e2e8f0; word-break: break-all;">${inv['Invoice No'] || inv['Invoice number']}</td>
+      <td width="14%" style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">${formatCurrency(gross)}</td>
+      <td width="12%" style="padding: 10px 8px; text-align: right; color: #475569; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">${formatCurrency(gst)}</td>
+      <td width="16%" style="padding: 10px 8px; text-align: right; color: #dc2626; font-weight: 700; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">${formatCurrency(net)}</td>
+      <td width="16%" style="padding: 10px 8px; color: #475569; border-bottom: 1px solid #e2e8f0; word-break: break-word;">${inv['Category'] || ''}</td>
+      <td width="15%" style="padding: 10px 8px; text-align: center; color: #e11d48; font-weight: bold; border-bottom: 1px solid #e2e8f0;">${inv['Ageing'] || '-'}</td>
     </tr>`;
   });
   html += `</tbody>`;
@@ -630,7 +684,8 @@ function generateTypeTableHtml(type, invoices, formatCurrency) {
         <div style="margin-bottom: 4px;">
           <span style="display: inline-block; padding: 2px 6px; background-color: #eff6ff; color: #1e40af; border-radius: 4px; font-size: 10px; font-weight: 700; border: 1px solid #dbeafe; word-break: break-all;">${inv['Invoice No'] || inv['Invoice number']}</span>
         </div>
-        <div style="font-size: 10px; color: #64748b; font-weight: 500;">${inv['Date'] || inv['Invoice date'] || inv.Date}</div>
+        <div style="font-size: 10px; color: #64748b; font-weight: 500; margin-bottom: 4px;">${inv['Date'] || inv['Invoice date'] || inv.Date}</div>
+        <div style="font-size: 10px; color: #e11d48; font-weight: 700;">Ageing: ${inv['Ageing'] || '-'}</div>
       </td>
       <td width="30%" style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0; vertical-align: top;">
         <div style="margin-bottom: 4px; line-height: 1.2;">
@@ -1210,6 +1265,17 @@ function TemplatesView({ templates, setTemplates, settings, setSettings, resetDa
                 placeholder="billing-archive@yourcompany.com, audit@yourcompany.com"
               />
               <p className="text-xs text-muted-foreground mt-1.5">Multiple emails can be separated by commas or semicolons. These addresses will automatically be CC'd on all emails sent.</p>
+            </div>
+
+            <div className="col-span-2">
+              <label className="text-xs font-semibold text-muted-foreground mb-1.5 block uppercase tracking-wider">Admin Alert Email (Bugs/Sync Errors)</label>
+              <input 
+                className="input" 
+                value={settings.adminAlertEmail || ''} 
+                onChange={e => setSettings({...settings, adminAlertEmail: e.target.value})} 
+                placeholder="finance@pixel-studios.com"
+              />
+              <p className="text-xs text-muted-foreground mt-1.5">When the system catches a bug or a sync fails, a detailed explanation will be emailed here.</p>
             </div>
 
             <div className="col-span-2 pt-4 border-t border-border mt-2">
