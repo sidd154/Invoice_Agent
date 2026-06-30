@@ -9,22 +9,25 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
-const extractCurrencyAndAmount = (val) => {
-  if (typeof val === 'number') return { currency: 'INR', amount: val };
-  if (!val) return { currency: 'INR', amount: 0 };
+const extractCurrencyAndAmount = (val, forceCurrency = null) => {
+  if (typeof val === 'number') return { currency: forceCurrency || 'INR', amount: val };
+  if (!val) return { currency: forceCurrency || 'INR', amount: 0 };
   const strVal = val.toString().trim();
-  let currency = 'INR';
-  const matchCode = strVal.match(/([A-Z]{3})/i);
-  if (matchCode) {
-    currency = matchCode[1].toUpperCase();
-  } else if (strVal.includes('$')) {
-    currency = 'USD';
-  } else if (strVal.includes('€')) {
-    currency = 'EUR';
-  } else if (strVal.includes('£')) {
-    currency = 'GBP';
-  } else if (strVal.includes('A$')) {
-    currency = 'AUD';
+  let currency = forceCurrency || 'INR';
+  
+  if (!forceCurrency) {
+    const matchCode = strVal.match(/([A-Z]{3})/i);
+    if (matchCode) {
+      currency = matchCode[1].toUpperCase();
+    } else if (strVal.includes('$')) {
+      currency = 'USD';
+    } else if (strVal.includes('€')) {
+      currency = 'EUR';
+    } else if (strVal.includes('£')) {
+      currency = 'GBP';
+    } else if (strVal.includes('A$')) {
+      currency = 'AUD';
+    }
   }
   
   const amount = parseFloat(strVal.replace(/[^0-9.-]+/g, '')) || 0;
@@ -35,8 +38,8 @@ const cleanAmount = (val) => {
   return extractCurrencyAndAmount(val).amount;
 };
 
-const formatCurrency = (val) => {
-  const { currency, amount } = extractCurrencyAndAmount(val);
+const formatCurrency = (val, forceCurrency = null) => {
+  const { currency, amount } = extractCurrencyAndAmount(val, forceCurrency);
   if (isNaN(amount)) return val;
   
   try {
@@ -680,9 +683,9 @@ function generateTypeTableHtml(type, invoices, formatCurrency) {
     html += `<tr style="border-bottom: 1px solid #e2e8f0; color: #0f172a;">
       <td width="12%" style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; word-break: break-word;">${inv['Date'] || inv['Invoice date'] || inv.Date}</td>
       <td width="15%" style="padding: 10px 8px; font-weight: 600; color: #2563eb; border-bottom: 1px solid #e2e8f0; word-break: break-all;">${inv['Invoice No'] || inv['Invoice number']}</td>
-      <td width="14%" style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">${formatCurrency(gross)}</td>
-      <td width="12%" style="padding: 10px 8px; text-align: right; color: #475569; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">${formatCurrency(gst)}</td>
-      <td width="16%" style="padding: 10px 8px; text-align: right; color: #dc2626; font-weight: 700; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">${formatCurrency(net)}</td>
+      <td width="14%" style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">${formatCurrency(inv['Gross Invoice'])}</td>
+      <td width="12%" style="padding: 10px 8px; text-align: right; color: #475569; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">${formatCurrency(inv['GST'])}</td>
+      <td width="16%" style="padding: 10px 8px; text-align: right; color: #dc2626; font-weight: 700; border-bottom: 1px solid #e2e8f0; white-space: nowrap;">${formatCurrency(inv['Net Invoice Value'] || inv['Invoice amount'])}</td>
       <td width="16%" style="padding: 10px 8px; color: #475569; border-bottom: 1px solid #e2e8f0; word-break: break-word;">${inv['Category'] || ''}</td>
       <td width="15%" style="padding: 10px 8px; text-align: center; color: #e11d48; font-weight: bold; border-bottom: 1px solid #e2e8f0;">${inv['Ageing'] || '-'}</td>
     </tr>`;
@@ -722,11 +725,11 @@ function generateTypeTableHtml(type, invoices, formatCurrency) {
           <span style="display: inline-block; width: 6px; height: 6px; background-color: #3b82f6; border-radius: 50%; margin-right: 4px; vertical-align: middle;"></span>
           <span style="font-weight: 600; color: #334155; vertical-align: middle; font-size: 11px; word-break: break-word;">${inv['Category'] || 'General'}</span>
         </div>
-        <div style="font-size: 10px; color: #64748b;">GST: ${formatCurrency(gst)}</div>
+        <div style="font-size: 10px; color: #64748b;">GST: ${formatCurrency(inv['GST'])}</div>
       </td>
       <td width="35%" style="padding: 12px 10px; text-align: right; border-bottom: 1px solid #e2e8f0; vertical-align: top;">
-        <div style="font-size: 10px; color: #64748b;">Gross: ${formatCurrency(gross)}</div>
-        <div style="font-weight: 800; color: #b91c1c; font-size: 13px; margin-top: 4px; white-space: nowrap;">${formatCurrency(net)}</div>
+        <div style="font-size: 10px; color: #64748b;">Gross: ${formatCurrency(inv['Gross Invoice'])}</div>
+        <div style="font-weight: 800; color: #b91c1c; font-size: 13px; margin-top: 4px; white-space: nowrap;">${formatCurrency(inv['Net Invoice Value'] || inv['Invoice amount'])}</div>
       </td>
     </tr>`;
   });
@@ -734,8 +737,10 @@ function generateTypeTableHtml(type, invoices, formatCurrency) {
   html += `</table>`;
   
   // Specific Subtotal Below Table
-  html += `<div class="subtotal-container" style="text-align: right; margin-top: 10px; font-size: 13px; color: #0f172a; font-weight: 700;">
-    Subtotal ${type} Net: <span style="color: #dc2626; font-size: 14px;">${formatCurrency(subtotal)}</span>
+    const firstInvVal = invoices.length > 0 ? (invoices[0]['Net Invoice Value'] || invoices[0]['Invoice amount']) : '';
+    const groupCurrency = extractCurrencyAndAmount(firstInvVal).currency;
+    html += `<div class="subtotal-container" style="text-align: right; margin-top: 10px; font-size: 13px; color: #0f172a; font-weight: 700;">
+    Subtotal ${type} Net: <span style="color: #dc2626; font-size: 14px;">${formatCurrency(subtotal, groupCurrency)}</span>
   </div>`;
   html += `</div>`;
   
@@ -744,6 +749,8 @@ function generateTypeTableHtml(type, invoices, formatCurrency) {
 
 function compileEmailHtml(customer, customerInvoices, templateStr, formatCurrency, lastSentDate = null, companyName = "Enterprise Finance") {
   const pendingAmount = customerInvoices.reduce((acc, curr) => acc + cleanAmount(curr['Net Invoice Value'] || curr['Invoice amount']), 0);
+  const firstInvVal = customerInvoices.length > 0 ? (customerInvoices[0]['Net Invoice Value'] || customerInvoices[0]['Invoice amount']) : '';
+  const customerCurrency = extractCurrencyAndAmount(firstInvVal).currency;
   
   // Group by Invoice Type
   const groupedByType = {};
@@ -770,7 +777,7 @@ function compileEmailHtml(customer, customerInvoices, templateStr, formatCurrenc
     .replace(/\{\{address_to\}\}/g, `<strong>${salutationName}</strong>`)
     .replace(/\{\{customer_name\}\}/g, `<strong>${salutationName}</strong>`)
     .replace(/\{\{company_name\}\}/g, `<strong>${companyName}</strong>`)
-    .replace(/\{\{total_pending\}\}/g, `<strong style="color: #dc2626; font-size: 16px;">${formatCurrency(pendingAmount)}</strong>`)
+    .replace(/\{\{total_pending\}\}/g, `<strong style="color: #dc2626; font-size: 16px;">${formatCurrency(pendingAmount, customerCurrency)}</strong>`)
     .replace(/\{\{last_sent_date\}\}/g, lastSentDate ? `<strong>${new Date(lastSentDate).toLocaleDateString()}</strong>` : '')
     .replace(/\{\{invoice_table\}\}/g, '{{invoice_table_placeholder}}')
     .replace(/\n/g, '<br>')
@@ -859,11 +866,16 @@ function QueueView({ invoices, customers, templates, formatCurrency, saveHistory
   });
 
   const pendingClients = Object.keys(grouped).map(cName => {
+    const cInvoices = grouped[cName];
+    const firstInvVal = cInvoices.length > 0 ? (cInvoices[0]['Net Invoice Value'] || cInvoices[0]['Invoice amount']) : '';
+    const customerCurrency = extractCurrencyAndAmount(firstInvVal).currency;
+    
     return {
       customerData: customers.find(c => c['Customer Name'] === cName),
       customerName: cName,
-      invoices: grouped[cName],
-      total: grouped[cName].reduce((acc, curr) => acc + cleanAmount(curr['Net Invoice Value'] || curr['Invoice amount']), 0)
+      invoices: cInvoices,
+      total: cInvoices.reduce((acc, curr) => acc + cleanAmount(curr['Net Invoice Value'] || curr['Invoice amount']), 0),
+      currency: customerCurrency
     };
   }).filter(c => {
     return !!c.customerData;
@@ -1026,7 +1038,7 @@ function QueueView({ invoices, customers, templates, formatCurrency, saveHistory
                 <td className="font-medium">{client.customerName}</td>
                 <td className="text-muted-foreground">{client.customerData['Email ID'] || client.customerData['Mail Id'] || client.customerData.email || ''}</td>
                 <td className="text-center"><span className="badge badge-open">{client.invoices.length}</span></td>
-                <td className="text-right text-destructive font-bold">{formatCurrency(client.total)}</td>
+                <td className="text-right text-destructive font-bold">{formatCurrency(client.total, client.currency)}</td>
                 <td className="text-center">
                   <button onClick={() => handleReview(client)} className="btn btn-primary h-7 px-3 text-xs shadow-glow">Review Draft</button>
                 </td>
