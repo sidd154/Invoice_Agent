@@ -9,10 +9,44 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
+const extractCurrencyAndAmount = (val) => {
+  if (typeof val === 'number') return { currency: 'INR', amount: val };
+  if (!val) return { currency: 'INR', amount: 0 };
+  const strVal = val.toString().trim();
+  let currency = 'INR';
+  const matchCode = strVal.match(/([A-Z]{3})/i);
+  if (matchCode) {
+    currency = matchCode[1].toUpperCase();
+  } else if (strVal.includes('$')) {
+    currency = 'USD';
+  } else if (strVal.includes('€')) {
+    currency = 'EUR';
+  } else if (strVal.includes('£')) {
+    currency = 'GBP';
+  } else if (strVal.includes('A$')) {
+    currency = 'AUD';
+  }
+  
+  const amount = parseFloat(strVal.replace(/[^0-9.-]+/g, '')) || 0;
+  return { currency, amount };
+};
+
 const cleanAmount = (val) => {
-  if (typeof val === 'number') return val;
-  if (!val) return 0;
-  return parseFloat(val.toString().replace(/[^0-9.-]+/g, '')) || 0;
+  return extractCurrencyAndAmount(val).amount;
+};
+
+const formatCurrency = (val) => {
+  const { currency, amount } = extractCurrencyAndAmount(val);
+  if (isNaN(amount)) return val;
+  
+  try {
+    return new Intl.NumberFormat('en-IN', { 
+      style: 'currency', 
+      currency: currency 
+    }).format(amount);
+  } catch(e) {
+    return currency + ' ' + new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);
+  }
 };
 
 const DEFAULT_TEMPLATES = {
@@ -255,11 +289,7 @@ export default function App() {
     setIsUploading(false);
   };
 
-  const formatCurrency = (val) => {
-    const num = cleanAmount(val);
-    if(isNaN(num)) return val;
-    return 'Rs. ' + new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num);
-  };
+
 
   if (!isLoaded) return <div className="h-screen flex items-center justify-center">Loading Workspace...</div>;
 
@@ -555,7 +585,7 @@ function InvoicesView({ invoices, formatCurrency }) {
               <th className="text-right">GST</th>
               <th className="text-right font-bold">Net Value</th>
               <th>Category</th>
-              <th className="text-center">Ageing</th>
+              <th className="text-center">Days Overdue</th>
               <th className="text-center">Agent</th>
               <th className="text-center">Status</th>
             </tr>
@@ -635,7 +665,7 @@ function generateTypeTableHtml(type, invoices, formatCurrency) {
       <th width="12%" style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #cbd5e1;">GST</th>
       <th width="16%" style="padding: 10px 8px; text-align: right; border-bottom: 1px solid #cbd5e1;">Net Value</th>
       <th width="16%" style="padding: 10px 8px; border-bottom: 1px solid #cbd5e1;">Category</th>
-      <th width="15%" style="padding: 10px 8px; text-align: center; border-bottom: 1px solid #cbd5e1;">Ageing (Days)</th>
+      <th width="15%" style="padding: 10px 8px; text-align: center; border-bottom: 1px solid #cbd5e1;">Days Overdue</th>
     </tr>
   </thead>`;
   html += `<tbody>`;
@@ -685,7 +715,7 @@ function generateTypeTableHtml(type, invoices, formatCurrency) {
           <span style="display: inline-block; padding: 2px 6px; background-color: #eff6ff; color: #1e40af; border-radius: 4px; font-size: 10px; font-weight: 700; border: 1px solid #dbeafe; word-break: break-all;">${inv['Invoice No'] || inv['Invoice number']}</span>
         </div>
         <div style="font-size: 10px; color: #64748b; font-weight: 500; margin-bottom: 4px;">${inv['Date'] || inv['Invoice date'] || inv.Date}</div>
-        <div style="font-size: 10px; color: #e11d48; font-weight: 700;">Ageing: ${inv['Ageing'] || '-'}</div>
+        <div style="font-size: 10px; color: #e11d48; font-weight: 700;">Days Overdue: ${inv['Ageing'] || '-'}</div>
       </td>
       <td width="30%" style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0; vertical-align: top;">
         <div style="margin-bottom: 4px; line-height: 1.2;">
