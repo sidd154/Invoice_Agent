@@ -401,7 +401,8 @@ export async function runAutopilotReminders() {
             .filter(Boolean)
         )];
         const agentCcs = uniqueAgents.map(a => agentEmails[a.toLowerCase()]).filter(Boolean);
-        const mergedCcs = [...new Set([...globalCcEmails, ...agentCcs, ...contactCcs])];
+        let mergedCcs = [...new Set([...globalCcEmails, ...agentCcs, ...contactCcs])];
+        mergedCcs = mergedCcs.filter(ccEmail => !finalTo.includes(ccEmail));
 
         const dateOptions = { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Kolkata' };
         const formattedDate = new Date().toLocaleString('en-IN', dateOptions).replace(/,/g, '');
