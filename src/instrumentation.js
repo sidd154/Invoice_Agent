@@ -11,6 +11,13 @@ export async function register() {
       console.log('[Inbuilt Autopilot] Weekly background scheduler already registered.');
       return;
     }
+    
+    // Prevent duplicate cron executions when running in PM2 cluster mode
+    if (process.env.NODE_APP_INSTANCE !== undefined && process.env.NODE_APP_INSTANCE !== '0') {
+      console.log(`[Inbuilt Autopilot] Skipping scheduler on PM2 worker ${process.env.NODE_APP_INSTANCE}`);
+      return;
+    }
+    
     global.autopilotRegistered = true;
 
     // Only load and start scheduler on persistent Node.js servers, not during edge or build tasks
