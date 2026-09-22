@@ -597,7 +597,7 @@ function InvoicesView({ invoices, formatCurrency }) {
             {filtered.map((inv, idx) => (
               <tr key={inv['Invoice number'] || idx}>
                 <td className="text-muted-foreground">{inv.Date || inv['Invoice date']}</td>
-                <td className="text-xs font-semibold text-primary">{inv['Invoice Type'] || 'Tax Invoice'}</td>
+                <td className="text-xs font-semibold text-primary">{inv['Invoice Type'] || inv[''] || 'Tax Invoice'}</td>
                 <td className="font-semibold text-foreground">{inv['Invoice number'] || inv['Invoice No']}</td>
                 <td>{inv.Customer || inv.Particulars}</td>
                 <td className="text-right text-muted-foreground">{formatCurrency(inv['Gross Invoice'])}</td>
@@ -755,7 +755,7 @@ function compileEmailHtml(customer, customerInvoices, templateStr, formatCurrenc
   // Group by Invoice Type
   const groupedByType = {};
   customerInvoices.forEach(inv => {
-    let type = (inv['Invoice Type'] || 'Tax Invoice').trim();
+    let type = (inv['Invoice Type'] || inv[''] || 'Tax Invoice').trim();
     if (!groupedByType[type]) {
       groupedByType[type] = [];
     }

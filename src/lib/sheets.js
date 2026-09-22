@@ -95,6 +95,7 @@ export async function fetchSheetsData() {
     });
     
     // Unified backwards-compatible properties mapping
+    obj['Invoice Type'] = obj['Invoice Type'] || obj[''] || 'Tax Invoice';
     obj['Invoice number'] = obj['Invoice No'] || obj['Invoice number'] || '';
     obj['Customer'] = obj['Particulars'] || obj['Customer'] || '';
     obj['Invoice amount'] = obj['Net Invoice Value'] || obj['Invoice amount'] || '0';

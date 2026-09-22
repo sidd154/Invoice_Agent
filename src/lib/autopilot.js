@@ -165,7 +165,7 @@ function compileEmailHtml(customer, customerInvoices, templateStr, lastSentDate 
   // Group by Invoice Type
   const groupedByType = {};
   customerInvoices.forEach(inv => {
-    let type = (inv['Invoice Type'] || 'Tax Invoice').trim();
+    let type = (inv['Invoice Type'] || inv[''] || 'Tax Invoice').trim();
     if (!groupedByType[type]) {
       groupedByType[type] = [];
     }
